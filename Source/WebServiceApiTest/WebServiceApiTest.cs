@@ -33,7 +33,7 @@ namespace WebServiceApiTest
         static string endpointLocator = "http://{0}/api/{1}";
         static string endpointSearch = "http://{0}/api/search?searchTerm={1}";
 
-        static string serviceUrl = "test.chronozoomproject.org";
+        static string serviceUrl = "test.chronozoom.com";
 
         static string verbTimelines = "getTimelines";
         static string verbTours = "tours";

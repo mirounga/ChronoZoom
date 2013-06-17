@@ -13,7 +13,7 @@ namespace WebServiceApiTest
     [TestClass]
     public class AuthoringApiTest
     {
-        static string serviceUrl = "test.chronozoomproject.org";
+        static string serviceUrl = "test.chronozoom.com";
         static string endpointLocator = "http://{0}/api/{1}";
 
         [TestMethod]
@@ -32,7 +32,7 @@ namespace WebServiceApiTest
         [TestMethod]
         public void TestCollectionPutDelete()
         {
-            string endPoint = String.Format(endpointLocator, serviceUrl, "sandbox/apitest");
+            string endPoint = String.Format(endpointLocator, serviceUrl, "sandbox/sandbox");
             HttpWebRequest request = CreateRequest(endPoint, "PUT");
 
             Stream requestStream = request.GetRequestStream();
