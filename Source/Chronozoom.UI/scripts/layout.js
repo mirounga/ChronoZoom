@@ -5,6 +5,7 @@ var CZ;
         Layout.animatingElements = {
             length: 0
         };
+        Layout.timelineHeightRate = 0.4;
         function Timeline(title, left, right, childTimelines, exhibits) {
             this.Title = title;
             this.left = left;
@@ -26,6 +27,9 @@ var CZ;
             if(timeline.exhibits instanceof Array) {
                 timeline.exhibits.forEach(function (exhibit) {
                     exhibit.x = CZ.Dates.getCoordinateFromDecimalYear(exhibit.time);
+                    exhibit.contentItems.forEach(function (contentItem) {
+                        CZ.Extensions.activateExtension(contentItem.mediaType);
+                    });
                 });
             }
             if(timeline.timelines instanceof Array) {
@@ -38,7 +42,7 @@ var CZ;
             if(timeline.Height) {
                 timeline.Height /= 100;
             } else if(!timeline.AspectRatio && !timeline.Height) {
-                timeline.Height = 0.4;
+                timeline.Height = CZ.Layout.timelineHeightRate;
             }
         }
         function GenerateAspect(timeline) {
@@ -334,11 +338,11 @@ var CZ;
                 height = width * 100.0 / size.width;
             }
             return {
-                width: width - 1.25 * height,
+                width: width - 2.1 * height,
                 height: height,
                 marginTop: tlHeight - height - margin,
                 marginLeft: margin,
-                bboxWidth: width + 2 * margin - 1.25 * height,
+                bboxWidth: width + 2 * margin - 2.1 * height,
                 bboxHeight: height + 2 * margin
             };
         }

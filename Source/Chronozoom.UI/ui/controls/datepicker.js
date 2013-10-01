@@ -24,7 +24,7 @@ var CZ;
                     switch(mode) {
                         case "year":
                             _this.editModeYear();
-                            _this.setDate(_this.coordinate, false);
+                            _this.setDate_YearMode(_this.coordinate, false);
                             break;
                         case "date":
                             _this.editModeDate();
@@ -53,37 +53,50 @@ var CZ;
                 var optionIntinite = $("<option value='infinite'>Infinite</option>");
                 this.modeSelector.append(optionIntinite);
             };
-            DatePicker.prototype.setDate = function (coordinate, InfinityConvertation) {
-                if (typeof InfinityConvertation === "undefined") { InfinityConvertation = false; }
+            DatePicker.prototype.setDate = function (coordinate, ZeroYearConversation) {
+                if (typeof ZeroYearConversation === "undefined") { ZeroYearConversation = false; }
                 if(!this.validateNumber(coordinate)) {
                     return false;
                 }
                 coordinate = Number(coordinate);
                 this.coordinate = coordinate;
-                var mode = this.modeSelector.find(":selected").val();
+                var regime = CZ.Dates.convertCoordinateToYear(this.coordinate).regime;
                 if(this.coordinate === this.INFINITY_VALUE) {
-                    if(InfinityConvertation) {
-                        this.regimeSelector.find(":selected").attr("selected", "false");
+                    this.modeSelector.find(":selected").attr("selected", "false");
+                    this.modeSelector.find("option").each(function () {
+                        if($(this).val() === "infinite") {
+                            $(this).attr("selected", "selected");
+                            return;
+                        }
+                    });
+                    this.editModeInfinite();
+                    return;
+                }
+                switch(regime.toLowerCase()) {
+                    case "ga":
+                    case "ma":
+                    case "ka":
+                        this.modeSelector.find(":selected").attr("selected", "false");
                         this.modeSelector.find("option").each(function () {
-                            if($(this).val() === "infinite") {
+                            if($(this).val() === "year") {
                                 $(this).attr("selected", "selected");
                                 return;
                             }
                         });
-                        this.editModeInfinite();
-                    } else {
-                        var localPresent = CZ.Dates.getPresent();
-                        coordinate = CZ.Dates.getCoordinateFromYMD(localPresent.presentYear, localPresent.presentMonth, localPresent.presentDay);
-                    }
-                }
-                switch(mode) {
-                    case "year":
-                        this.setDate_YearMode(coordinate);
+                        this.editModeYear();
+                        this.setDate_YearMode(coordinate, ZeroYearConversation);
                         break;
-                    case "date":
+                    case "bce":
+                    case "ce":
+                        this.modeSelector.find(":selected").attr("selected", "false");
+                        this.modeSelector.find("option").each(function () {
+                            if($(this).val() === "date") {
+                                $(this).attr("selected", "selected");
+                                return;
+                            }
+                        });
+                        this.editModeDate();
                         this.setDate_DateMode(coordinate);
-                        break;
-                    case "infinite":
                         break;
                 }
             };
@@ -109,10 +122,14 @@ var CZ;
                 this.yearSelector.focus(function (event) {
                     _this.errorMsg.text("");
                 });
+                this.regimeSelector.change(function (event) {
+                    _this.checkAndRemoveNonIntegerPart();
+                });
                 this.yearSelector.blur(function (event) {
                     if(!_this.validateNumber(_this.yearSelector.val())) {
                         _this.errorMsg.text(_this.WRONG_YEAR_INPUT);
                     }
+                    _this.checkAndRemoveNonIntegerPart();
                 });
                 var optionGa = $("<option value='ga'>Ga</option>");
                 var optionMa = $("<option value='ma'>Ma</option>");
@@ -136,6 +153,7 @@ var CZ;
                     if(!_this.validateNumber(_this.yearSelector.val())) {
                         _this.errorMsg.text(_this.WRONG_YEAR_INPUT);
                     }
+                    _this.checkAndRemoveNonIntegerPart();
                 });
                 var self = this;
                 this.monthSelector.change(function (event) {
@@ -158,8 +176,18 @@ var CZ;
             DatePicker.prototype.editModeInfinite = function () {
                 this.dateContainer.empty();
             };
-            DatePicker.prototype.setDate_YearMode = function (coordinate) {
+            DatePicker.prototype.checkAndRemoveNonIntegerPart = function () {
+                var regime = this.regimeSelector.find(":selected").val().toLowerCase();
+                var mode = this.modeSelector.find(":selected").val().toLowerCase();
+                if(regime === 'ce' || regime === 'bce' || mode === 'date') {
+                    this.yearSelector.val(parseFloat(this.yearSelector.val()).toFixed());
+                }
+            };
+            DatePicker.prototype.setDate_YearMode = function (coordinate, ZeroYearConversation) {
                 var date = CZ.Dates.convertCoordinateToYear(coordinate);
+                if((date.regime.toLowerCase() == "bce") && (ZeroYearConversation)) {
+                    date.year--;
+                }
                 this.yearSelector.val(date.year);
                 this.regimeSelector.find(":selected").attr("selected", "false");
                 this.regimeSelector.find("option").each(function () {

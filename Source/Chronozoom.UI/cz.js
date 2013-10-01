@@ -1,6 +1,8 @@
 ﻿var CZ;
 (function (CZ) {
     (function (Settings) {
+        Settings.isAuthorized = false;
+        Settings.favoriteTimelines = [];
         Settings.czDataSource = 'db';
         Settings.czVersion = "main";
         Settings.ellipticalZoomZoomoutFactor = 0.5;
@@ -9,7 +11,8 @@
         Settings.zoomSpeedFactor = 2.0;
         Settings.zoomLevelFactor = 1.4;
         Settings.allowedVisibileImprecision = 0.00001;
-        Settings.allowedMathImprecision = 0.0000001;
+        Settings.allowedMathImprecision = 0.000001;
+        Settings.allowedMathImprecisionDecimals = parseInt(Settings.allowedMathImprecision.toExponential().split("-")[1]);
         Settings.canvasElementAnimationTime = 1300;
         Settings.canvasElementFadeInTime = 400;
         Settings.contentScaleMargin = 20;
@@ -32,6 +35,9 @@
         Settings.timelineHoveredBoxBorderColor = 'rgb(232,232,232)';
         Settings.timelineBreadCrumbBorderOffset = 50;
         Settings.timelineCenterOffsetAcceptableImplicity = 0.00001;
+        Settings.timelineColor = null;
+        Settings.timelineHoverAnimation = 3 / 60.0;
+        Settings.timelineGradientFillStyle = null;
         Settings.infodotShowContentZoomLevel = 9;
         Settings.infodotShowContentThumbZoomLevel = 2;
         Settings.infoDotHoveredBorderWidth = 40.0 / 450;
@@ -165,6 +171,69 @@
         Settings.signinUrlMicrosoft = "";
         Settings.signinUrlGoogle = "";
         Settings.signinUrlYahoo = "";
+        Settings.sessionTime = 3600;
+        Settings.guidEmpty = "00000000-0000-0000-0000-000000000000";
+        Settings.ie = ((function () {
+            var v = 3, div = document.createElement('div'), a = div.all || [];
+            while(div.innerHTML = '<!--[if gt IE ' + (++v) + ']><br><![endif]-->' , a[0]) {
+                ;
+            }
+            return (v > 4) ? v : undefined;
+        })());
+        Settings.theme;
+        function applyTheme(theme) {
+            if(!theme) {
+                theme = "cosmos";
+            }
+            this.theme = theme;
+            var themeData = {
+                "cosmos": {
+                    "background": "url('/images/background.jpg')",
+                    "backgroundColor": "#232323",
+                    "timelineColor": null,
+                    "timelineHoverAnimation": 3 / 60.0,
+                    "infoDotFillColor": 'rgb(92,92,92)',
+                    "fallbackImageUri": '/images/Temp-Thumbnail2.png',
+                    "timelineGradientFillStyle": null
+                },
+                "gray": {
+                    "background": "none",
+                    "backgroundColor": "#bebebe",
+                    "timelineColor": null,
+                    "timelineHoverAnimation": 3 / 60.0,
+                    "infoDotFillColor": 'rgb(92,92,92)',
+                    "fallbackImageUri": '/images/Temp-Thumbnail2.png',
+                    "timelineGradientFillStyle": "#9e9e9e"
+                },
+                "aqua": {
+                    "background": "none",
+                    "backgroundColor": "rgb(238, 238, 238)",
+                    "timelineColor": "rgba(52, 76, 130, 0.5)",
+                    "timelineHoverAnimation": 3 / 60.0,
+                    "infoDotFillColor": 'rgb(55,84,123)',
+                    "fallbackImageUri": '/images/Temp-Thumbnail-Aqua.png',
+                    "timelineGradientFillStyle": "rgb(80,123,175)"
+                }
+            };
+            var themeSettings = themeData[theme];
+            $('#vc').css('background-image', themeSettings.background);
+            $('#vc').css('background-color', themeSettings.backgroundColor);
+            CZ.Settings.timelineColor = themeSettings.timelineColor;
+            CZ.Settings.timelineHoverAnimation = themeSettings.timelineHoverAnimation;
+            CZ.Settings.infoDotFillColor = themeSettings.infoDotFillColor;
+            CZ.Settings.fallbackImageUri = themeSettings.fallbackImageUri;
+            CZ.Settings.timelineGradientFillStyle = themeSettings.timelineGradientFillStyle;
+        }
+        Settings.applyTheme = applyTheme;
+        Settings.defaultBingSearchTop = 50;
+        Settings.defaultBingSearchSkip = 0;
+        Settings.mediapickerImageThumbnailMaxWidth = 240;
+        Settings.mediapickerImageThumbnailMaxHeight = 155;
+        Settings.mediapickerVideoThumbnailMaxWidth = 190;
+        Settings.mediapickerVideoThumbnailMaxHeight = 130;
+        Settings.WLAPIClientID = "0000000040101FFA";
+        Settings.WLAPIRedirectUrl = "http://test.chronozoom.com/";
+        Settings.errorMessageSlideDuration = 0;
     })(CZ.Settings || (CZ.Settings = {}));
     var Settings = CZ.Settings;
 })(CZ || (CZ = {}));
@@ -189,6 +258,7 @@ var CZ;
                 this.navButton = this.container.find(formInfo.navButton);
                 this.closeButton = this.container.find(formInfo.closeButton);
                 this.titleTextblock = this.container.find(formInfo.titleTextblock);
+                this.contentContainer = this.container.find(formInfo.contentContainer);
                 this.container.data("form", this);
                 if(this.prevForm) {
                     this.navButton.show();
@@ -220,6 +290,7 @@ var CZ;
                 this.isFormVisible = false;
                 this.container.data("form", undefined);
                 this.container.hide.apply(this.container, args);
+                this.container.trigger("close");
             };
             FormBase.prototype.back = function () {
                 this.close();
@@ -595,6 +666,119 @@ var CZ;
 ;
 var CZ;
 (function (CZ) {
+    (function (Extensions) {
+        (function (RIN) {
+            function getScript() {
+                return "http://553d4a03eb844efaaf7915517c979ef4.cloudapp.net/rinjsTag/lib/rin-core-1.0.js";
+            }
+            RIN.getScript = getScript;
+            function getExtension(vc, parent, layerid, id, contentSource, vx, vy, vw, vh, z, onload) {
+                var rinDiv;
+                if(!rinDiv) {
+                    rinDiv = document.createElement('div');
+                    rinDiv.setAttribute("id", id);
+                    rinDiv.setAttribute("class", "rinPlayer");
+                    rinDiv.addEventListener("mousemove", CZ.Common.preventbubble, false);
+                    rinDiv.addEventListener("mousedown", CZ.Common.preventbubble, false);
+                    rinDiv.addEventListener("DOMMouseScroll", CZ.Common.preventbubble, false);
+                    rinDiv.addEventListener("mousewheel", CZ.Common.preventbubble, false);
+                    rin.processAll(null, 'http://553d4a03eb844efaaf7915517c979ef4.cloudapp.net/rinjsTag/').then(function () {
+                        var playerElement = document.getElementById(id);
+                        var playerControl = rin.getPlayerControl(rinDiv);
+                        if(playerControl) {
+                            var deepstateUrl = playerControl.resolveDeepstateUrlFromAbsoluteUrl(window.location.href);
+                            playerControl.load(contentSource);
+                        }
+                    });
+                } else {
+                    rinDiv.isAdded = false;
+                }
+                return new RINPlayer(vc, parent, layerid, id, contentSource, vx, vy, vw, vh, z, onload, rinDiv);
+            }
+            RIN.getExtension = getExtension;
+            function RINPlayer(vc, parent, layerid, id, contentSource, vx, vy, vw, vh, z, onload, rinDiv) {
+                this.base = CZ.VCContent.CanvasDomItem;
+                this.base(vc, layerid, id, vx, vy, vw, vh, z);
+                this.initializeContent(rinDiv);
+                this.onRemove = function () {
+                    var rinplayerControl = rin.getPlayerControl(rinDiv);
+                    if(rinplayerControl) {
+                        rinplayerControl.pause();
+                        if(rinplayerControl.unload) {
+                            rinplayerControl.unload();
+                        }
+                        rinplayerControl = null;
+                    }
+                    this.prototype.onRemove.call(this);
+                };
+                this.prototype = new CZ.VCContent.CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
+            }
+        })(Extensions.RIN || (Extensions.RIN = {}));
+        var RIN = Extensions.RIN;
+    })(CZ.Extensions || (CZ.Extensions = {}));
+    var Extensions = CZ.Extensions;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (Extensions) {
+        var extensions = [];
+        function mediaTypeIsExtension(mediaType) {
+            return mediaType.toLowerCase().indexOf('extension-') === 0;
+        }
+        Extensions.mediaTypeIsExtension = mediaTypeIsExtension;
+        function registerExtensions() {
+            registerExtension("RIN", CZ.Extensions.RIN.getExtension, [
+                "/scripts/extensions/rin-scripts/tagInk.js", 
+                "/scripts/extensions/rin-scripts/raphael.js", 
+                "/scripts/extensions/rin-scripts/rin-core-1.0.js"
+            ]);
+        }
+        Extensions.registerExtensions = registerExtensions;
+        function registerExtension(name, initializer, scripts) {
+            extensions[name.toLowerCase()] = {
+                "initializer": initializer,
+                "scripts": scripts
+            };
+        }
+        function activateExtension(mediaType) {
+            if(!mediaTypeIsExtension(mediaType)) {
+                return;
+            }
+            var extensionName = extensionNameFromMediaType(mediaType);
+            var scripts = getScriptsFromExtensionName(extensionName);
+            scripts.forEach(function (script, index) {
+                addScript(extensionName, script, index);
+            });
+        }
+        Extensions.activateExtension = activateExtension;
+        function getInitializer(mediaType) {
+            var extensionName = extensionNameFromMediaType(mediaType);
+            return extensions[extensionName.toLowerCase()].initializer;
+        }
+        Extensions.getInitializer = getInitializer;
+        function extensionNameFromMediaType(mediaType) {
+            var extensionIndex = 'extension-'.length;
+            return mediaType.substring(extensionIndex, mediaType.length);
+        }
+        function addScript(extensionName, scriptPath, index) {
+            var scriptId = "extension-" + extensionName + index;
+            if(document.getElementById(scriptId)) {
+                return;
+            }
+            var script = document.createElement("script");
+            script.type = "text/javascript";
+            script.src = scriptPath;
+            script.id = scriptId;
+            document.getElementsByTagName("head")[0].appendChild(script);
+        }
+        function getScriptsFromExtensionName(name) {
+            return extensions[name.toLowerCase()].scripts;
+        }
+    })(CZ.Extensions || (CZ.Extensions = {}));
+    var Extensions = CZ.Extensions;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
     (function (VCContent) {
         var elementclick = ($).Event("elementclick");
         function getVisibleForElement(element, scale, viewport, use_margin) {
@@ -673,6 +857,13 @@ var CZ;
             }
             return VCContent.addChild(element, new SeadragonImage(element.vc, element, layerid, id, imgSrc, vx, vy, vw, vh, z, onload), false);
         };
+        VCContent.addExtension = function (extensionName, element, layerid, id, vx, vy, vw, vh, z, imgSrc, onload) {
+            if(vw <= 0 || vh <= 0) {
+                throw "Extension size must be positive";
+            }
+            var initializer = CZ.Extensions.getInitializer(extensionName);
+            return VCContent.addChild(element, initializer(element.vc, element, layerid, id, imgSrc, vx, vy, vw, vh, z, onload), false);
+        };
         VCContent.addVideo = function (element, layerid, id, videoSource, vx, vy, vw, vh, z) {
             return VCContent.addChild(element, new CanvasVideoItem(element.vc, layerid, id, videoSource, vx, vy, vw, vh, z), false);
         };
@@ -681,6 +872,12 @@ var CZ;
         };
         var addAudio = function (element, layerid, id, audioSource, vx, vy, vw, vh, z) {
             return VCContent.addChild(element, new CanvasAudioItem(element.vc, layerid, id, audioSource, vx, vy, vw, vh, z), false);
+        };
+        VCContent.addSkydriveDocument = function (element, layerid, id, embededSource, vx, vy, vw, vh, z) {
+            return VCContent.addChild(element, new CanvasSkydriveDocumentItem(element.vc, layerid, id, embededSource, vx, vy, vw, vh, z), false);
+        };
+        VCContent.addSkydriveImage = function (element, layerid, id, embededSource, vx, vy, vw, vh, z) {
+            return VCContent.addChild(element, new CanvasSkydriveImageItem(element.vc, layerid, id, embededSource, vx, vy, vw, vh, z), false);
         };
         function addText(element, layerid, id, vx, vy, baseline, vh, text, settings, vw) {
             return VCContent.addChild(element, new CanvasText(element.vc, layerid, id, vx, vy, baseline, vh, text, settings, vw), false);
@@ -1079,7 +1276,7 @@ var CZ;
             this.endDate = timelineinfo.endDate;
             var width = timelineinfo.timeEnd - timelineinfo.timeStart;
             var headerSize = timelineinfo.titleRect ? timelineinfo.titleRect.height : CZ.Settings.timelineHeaderSize * timelineinfo.height;
-            var headerWidth = timelineinfo.titleRect && CZ.Authoring.isEnabled ? timelineinfo.titleRect.width : 0;
+            var headerWidth = timelineinfo.titleRect && (CZ.Authoring.isEnabled || CZ.Settings.isAuthorized) ? timelineinfo.titleRect.width : 0;
             var marginLeft = timelineinfo.titleRect ? timelineinfo.titleRect.marginLeft : CZ.Settings.timelineHeaderMargin * timelineinfo.height;
             var marginTop = timelineinfo.titleRect ? timelineinfo.titleRect.marginTop : (1 - CZ.Settings.timelineHeaderMargin) * timelineinfo.height - headerSize;
             var baseline = timelineinfo.top + marginTop + headerSize / 2.0;
@@ -1091,7 +1288,11 @@ var CZ;
             this.title = this.titleObject.text;
             this.regime = timelineinfo.regime;
             this.settings.gradientOpacity = 0;
-            this.settings.gradientFillStyle = timelineinfo.gradientFillStyle || timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+            if(CZ.Settings.timelineGradientFillStyle) {
+                this.settings.gradientFillStyle = CZ.Settings.timelineGradientFillStyle;
+            } else {
+                this.settings.gradientFillStyle = timelineinfo.gradientFillStyle || timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+            }
             this.reactsOnMouse = true;
             this.tooltipEnabled = true;
             this.tooltipIsShown = false;
@@ -1111,7 +1312,7 @@ var CZ;
                 this.settings.strokeStyle = CZ.Settings.timelineHoveredBoxBorderColor;
                 this.settings.lineWidth = CZ.Settings.timelineHoveredLineWidth;
                 this.titleObject.settings.fillStyle = CZ.Settings.timelineHoveredHeaderFontColor;
-                this.settings.hoverAnimationDelta = 3 / 60.0;
+                this.settings.hoverAnimationDelta = CZ.Settings.timelineHoverAnimation;
                 this.vc.requestInvalidate();
                 if(this.titleObject.initialized == false) {
                     var vp = this.vc.getViewport();
@@ -1168,7 +1369,8 @@ var CZ;
                 this.settings.strokeStyle = timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
                 this.settings.lineWidth = CZ.Settings.timelineLineWidth;
                 this.titleObject.settings.fillStyle = CZ.Settings.timelineHeaderFontColor;
-                this.settings.hoverAnimationDelta = -3 / 60.0;
+                this.settings.hoverAnimationDelta = -CZ.Settings.timelineHoverAnimation;
+                ;
                 this.vc.requestInvalidate();
             };
             this.base_render = this.render;
@@ -1178,13 +1380,51 @@ var CZ;
                     this.settings.gradientOpacity = Math.min(1, Math.max(0, this.settings.gradientOpacity + this.settings.hoverAnimationDelta));
                 }
                 this.base_render(ctx, visibleBox, viewport2d, size_p, opacity);
+                if(CZ.Settings.isAuthorized === true && typeof this.favoriteBtn === "undefined" && this.titleObject.width !== 0) {
+                    var btnX = CZ.Authoring.isEnabled ? this.x + this.width - 1.8 * this.titleObject.height : this.x + this.width - 1.0 * this.titleObject.height;
+                    var btnY = this.titleObject.y + 0.15 * this.titleObject.height;
+                    this.favoriteBtn = VCContent.addImage(this, layerid, id + "__favorite", btnX, btnY, 0.7 * this.titleObject.height, 0.7 * this.titleObject.height, "/images/star.svg");
+                    this.favoriteBtn.reactsOnMouse = true;
+                    this.favoriteBtn.onmouseclick = function () {
+                        var _this = this;
+                        if(CZ.Settings.favoriteTimelines.indexOf(this.parent.guid) !== -1) {
+                            CZ.Service.deleteUserFavorite(this.parent.guid).then(function (success) {
+                                CZ.Authoring.showMessageWindow("Timeline '" + _this.parent.title + "' was removed from your favorite timelines.", "Timeline removed from favorites");
+                            }, function (error) {
+                                console.log("[ERROR] /deleteUserFavorite with guid " + _this.parent.guid + " failed.");
+                            });
+                            CZ.Settings.favoriteTimelines.splice(CZ.Settings.favoriteTimelines.indexOf(this.parent.guid), 1);
+                        } else {
+                            CZ.Service.putUserFavorite(this.parent.guid).then(function (success) {
+                                CZ.Settings.favoriteTimelines.push(_this.parent.guid);
+                                CZ.Authoring.showMessageWindow("Timeline '" + _this.parent.title + "' was added to your favorite timelines.", "Favorite timeline added");
+                            }, function (error) {
+                                console.log("[ERROR] /putUserFavorite with guid + " + _this.parent.guid + " failed.");
+                            });
+                        }
+                        return true;
+                    };
+                    this.favoriteBtn.onmousehover = function () {
+                        this.parent.settings.strokeStyle = "yellow";
+                    };
+                    this.favoriteBtn.onmouseunhover = function () {
+                        this.parent.settings.strokeStyle = timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+                    };
+                    this.favoriteBtn.onRemove = function () {
+                        this.onmousehover = undefined;
+                        this.onmouseunhover = undefined;
+                        this.onmouseclick = undefined;
+                    };
+                }
                 if(CZ.Authoring.isEnabled && typeof this.editButton === "undefined" && this.titleObject.width !== 0) {
                     this.editButton = VCContent.addImage(this, layerid, id + "__edit", this.x + this.width - 1.15 * this.titleObject.height, this.titleObject.y, this.titleObject.height, this.titleObject.height, "/images/edit.svg");
                     this.editButton.reactsOnMouse = true;
                     this.editButton.onmouseclick = function () {
-                        CZ.Authoring.isActive = true;
-                        CZ.Authoring.mode = "editTimeline";
-                        CZ.Authoring.selectedTimeline = this.parent;
+                        if(CZ.Common.vc.virtualCanvas("getHoveredInfodot").x == undefined) {
+                            CZ.Authoring.isActive = true;
+                            CZ.Authoring.mode = "editTimeline";
+                            CZ.Authoring.selectedTimeline = this.parent;
+                        }
                         return true;
                     };
                     this.editButton.onmousehover = function () {
@@ -1346,6 +1586,14 @@ var CZ;
                                             currentLine += ' ' + words[iw];
                                         }
                                         lineWidth = newWidth;
+                                    }
+                                    var NewWordWidth;
+                                    if((words.length == 1) && (wsize.width > size_p.x)) {
+                                        var NewWordWidth = wsize.width;
+                                        while(NewWordWidth > size_p.x) {
+                                            fontSize /= 1.5;
+                                            NewWordWidth /= 1.5;
+                                        }
                                     }
                                 }
                                 lines.push(currentLine);
@@ -1645,6 +1893,7 @@ var CZ;
             };
             this.prototype = new CanvasElement(vc, layerid, id, vx, vy, vw, vh);
         }
+        VCContent.CanvasDomItem = CanvasDomItem;
         function CanvasScrollTextItem(vc, layerid, id, vx, vy, vw, vh, text, z) {
             this.base = CanvasDomItem;
             this.base(vc, layerid, id, vx, vy, vw, vh, z);
@@ -1676,14 +1925,18 @@ var CZ;
             this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
         }
         function CanvasPdfItem(vc, layerid, id, pdfSrc, vx, vy, vw, vh, z) {
+            var pdfViewer = "http://docs.google.com/viewer?url=";
             this.base = CanvasDomItem;
             this.base(vc, layerid, id, vx, vy, vw, vh, z);
             var elem = document.createElement('iframe');
             elem.setAttribute("id", id);
+            if(!pdfSrc.match("/^" + pdfViewer + "/")) {
+                pdfSrc = pdfViewer + pdfSrc;
+            }
             if(pdfSrc.indexOf('?') == -1) {
-                pdfSrc += '?wmode=opaque';
+                pdfSrc += '?&embedded=true&wmode=opaque';
             } else {
-                pdfSrc += '&wmode=opaque';
+                pdfSrc += '&embedded=true&wmode=opaque';
             }
             elem.setAttribute("src", pdfSrc);
             elem.setAttribute("visible", 'true');
@@ -1716,6 +1969,50 @@ var CZ;
             elem.setAttribute("visible", 'true');
             elem.setAttribute("controls", 'true');
             this.initializeContent(elem);
+            this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
+        }
+        function CanvasSkydriveDocumentItem(vc, layerid, id, embededSrc, vx, vy, vw, vh, z) {
+            this.base = CanvasDomItem;
+            this.base(vc, layerid, id, vx, vy, vw, vh, z);
+            var elem = document.createElement('iframe');
+            elem.setAttribute("id", id);
+            elem.setAttribute("src", embededSrc);
+            this.initializeContent(elem);
+            this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
+        }
+        function CanvasSkydriveImageItem(vc, layerid, id, embededSrc, vx, vy, vw, vh, z) {
+            this.base = CanvasDomItem;
+            this.base(vc, layerid, id, vx, vy, vw, vh, z);
+            var srcData = embededSrc.split(" ");
+            var elem = document.createElement('iframe');
+            elem.setAttribute("id", id);
+            elem.setAttribute("src", srcData[0]);
+            elem.setAttribute("scrolling", "no");
+            elem.setAttribute("frameborder", "0");
+            this.initializeContent(elem);
+            this.render = function (ctx, visibleBox, viewport2d, size_p, opacity) {
+                if(!this.content) {
+                    return;
+                }
+                var p = viewport2d.pointVirtualToScreen(this.x, this.y);
+                var width = parseFloat(srcData[1]);
+                var height = parseFloat(srcData[2]);
+                var scale = size_p.x / width;
+                if(height / width > size_p.y / size_p.x) {
+                    scale = size_p.y / height;
+                }
+                this.content.style.left = (p.x + size_p.x / 2) + 'px';
+                this.content.style.top = (p.y + size_p.y / 2) + 'px';
+                this.content.style.marginLeft = (-width / 2) + 'px';
+                this.content.style.marginTop = (-height / 2) + 'px';
+                this.content.style.width = width + 'px';
+                this.content.style.height = height + 'px';
+                this.content.style.opacity = opacity;
+                this.content.style.filter = 'alpha(opacity=' + (opacity * 100) + ')';
+                this.content.style.webkitTransform = "scale(" + scale + ")";
+                this.content.style.msTransform = "scale(" + scale + ")";
+                this.content.style.MozTransform = "scale(" + scale + ")";
+            };
             this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
         }
         function SeadragonImage(vc, parent, layerid, id, imageSource, vx, vy, vw, vh, z, onload) {
@@ -1814,7 +2111,7 @@ var CZ;
             var timeline = VCContent.addChild(element, new CanvasTimeline(element.vc, layerid, id, timelineinfo.timeStart, timelineinfo.top, width, timelineinfo.height, {
                 strokeStyle: timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineStrokeStyle,
                 lineWidth: CZ.Settings.timelineLineWidth,
-                fillStyle: timelineinfo.fillStyle,
+                fillStyle: CZ.Settings.timelineColor ? CZ.Settings.timelineColor : timelineinfo.fillStyle,
                 opacity: typeof timelineinfo.opacity !== 'undefined' ? timelineinfo.opacity : 1
             }, timelineinfo), true);
             return timeline;
@@ -1873,6 +2170,8 @@ var CZ;
                     var mediaID = id + "__media__";
                     var imageElem = null;
                     if(this.contentItem.mediaType.toLowerCase() === 'image' || this.contentItem.mediaType.toLowerCase() === 'picture') {
+                        imageElem = VCContent.addImage(container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, this.contentItem.uri);
+                    } else if(this.contentItem.mediaType.toLowerCase() === 'deepimage') {
                         imageElem = VCContent.addSeadragonImage(container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex, this.contentItem.uri);
                     } else if(this.contentItem.mediaType.toLowerCase() === 'video') {
                         VCContent.addVideo(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
@@ -1882,6 +2181,12 @@ var CZ;
                         addAudio(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
                     } else if(this.contentItem.mediaType.toLowerCase() === 'pdf') {
                         VCContent.addPdf(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    } else if(this.contentItem.mediaType.toLowerCase() === 'skydrive-document') {
+                        VCContent.addSkydriveDocument(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    } else if(this.contentItem.mediaType.toLowerCase() === 'skydrive-image') {
+                        VCContent.addSkydriveImage(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    } else if(CZ.Extensions.mediaTypeIsExtension(contentItem.mediaType)) {
+                        VCContent.addExtension(contentItem.mediaType, container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex, this.contentItem.uri);
                     }
                     var titleText = this.contentItem.title;
                     addText(container, layerid, id + "__title__", vx + leftOffset, titleTop, titleTop + titleHeight / 2.0, 0.9 * titleHeight, titleText, {
@@ -1992,8 +2297,23 @@ var CZ;
             this.title = infodotDescription.title;
             this.opacity = typeof infodotDescription.opacity !== 'undefined' ? infodotDescription.opacity : 1;
             contentItems.sort(function (a, b) {
-                return a.order - b.order;
+                if(typeof a.order !== 'undefined' && typeof b.order === 'undefined') {
+                    return -1;
+                } else if(typeof a.order === 'undefined' && typeof b.order !== 'undefined') {
+                    return 1;
+                } else if(typeof a.order === 'undefined' && typeof b.order === 'undefined') {
+                    return 0;
+                } else if(a.order < b.order) {
+                    return -1;
+                } else if(a.order > b.order) {
+                    return 1;
+                } else {
+                    return 0;
+                }
             });
+            for(var i = 0; i < contentItems.length; i++) {
+                contentItems[i].order = i;
+            }
             var vyc = this.newY + radv;
             var innerRad = radv - CZ.Settings.infoDotHoveredBorderWidth * radv;
             this.outerRad = radv;
@@ -2111,7 +2431,19 @@ var CZ;
                     var title = '';
                     if(infodotDescription && infodotDescription.title && infodotDescription.date) {
                         var exhibitDate = CZ.Dates.convertCoordinateToYear(infodotDescription.date);
-                        title = infodotDescription.title + '\n(' + exhibitDate.year + ' ' + exhibitDate.regime + ')';
+                        if((exhibitDate.regime == "CE") || (exhibitDate.regime == "BCE")) {
+                            var date_number = Number(infodotDescription.date);
+                            var exhibitDate = CZ.Dates.convertCoordinateToYear(date_number);
+                            var exhibitYMD = CZ.Dates.getYMDFromCoordinate(date_number);
+                            date_number = Math.abs(date_number);
+                            if(date_number == Math.floor(date_number)) {
+                                title = infodotDescription.title + '\n(' + parseFloat((date_number).toFixed(2)) + ' ' + exhibitDate.regime + ')';
+                            } else {
+                                title = infodotDescription.title + '\n(' + exhibitYMD.year + "." + (exhibitYMD.month + 1) + "." + exhibitYMD.day + ' ' + exhibitDate.regime + ')';
+                            }
+                        } else {
+                            title = infodotDescription.title + '\n(' + parseFloat(exhibitDate.year.toFixed(2)) + ' ' + exhibitDate.regime + ')';
+                        }
                     }
                     var infodotTitle = addText(contentItem, layerid, id + "__title", time - titleWidth / 2, titleTop, titleTop, titleHeight, title, {
                         fontName: CZ.Settings.contentItemHeaderFontName,
@@ -2315,7 +2647,7 @@ var CZ;
             var xr = xc + rad * (_xrc - _lw / 2);
             var yb = yc + rad * (_ybc - _lh / 2);
             var vcitems = [];
-            for(var i = 0, len = Math.min(10, n); i < len; i++) {
+            for(var i = 0, len = Math.min(CZ.Settings.infodotMaxContentItemsCount, n); i < len; i++) {
                 var ci = contentItems[i];
                 if(i === 0) {
                     vcitems.push(new ContentItem(vc, layerid, ci.id, -_wc / 2 * rad + xc, -_hc / 2 * rad + yc, _wc * rad, _hc * rad, ci));
@@ -2598,8 +2930,7 @@ var CZ;
 (function (CZ) {
     (function (UI) {
         var TourStop = (function () {
-            function TourStop(bookmarkId, target, sequence, title) {
-                this.bookmarkId = bookmarkId;
+            function TourStop(target, title) {
                 if(target == undefined || target == null) {
                     throw "target element of a tour stop is null or undefined";
                 }
@@ -2617,10 +2948,6 @@ var CZ;
                     this.type = target.type === "timeline" ? "Timeline" : "Event";
                     this.title = title ? title : target.title;
                 }
-                if(!this.bookmarkId) {
-                    this.bookmarkId = "00000000-0000-0000-0000-000000000000";
-                }
-                this.sequence = sequence;
             }
             Object.defineProperty(TourStop.prototype, "Target", {
                 get: function () {
@@ -2652,16 +2979,6 @@ var CZ;
                 },
                 set: function (value) {
                     this.lapseTime = value;
-                },
-                enumerable: true,
-                configurable: true
-            });
-            Object.defineProperty(TourStop.prototype, "Sequence", {
-                get: function () {
-                    return this.sequence;
-                },
-                set: function (n) {
-                    this.sequence = n;
                 },
                 enumerable: true,
                 configurable: true
@@ -2729,7 +3046,7 @@ var CZ;
         UI.TourStop = TourStop;        
         var Tour = (function () {
             function Tour(id, title, description, category, sequence, stops) {
-                this.id = id ? id : "00000000-0000-0000-0000-000000000000";
+                this.id = id;
                 this.title = title;
                 this.description = description;
                 this.sequence = sequence;
@@ -2835,126 +3152,46 @@ var CZ;
                         type: "Unknown"
                     };
                 }
-                var stop = new TourStop(bookmark.id, target, bookmark.number, (!bookmark.caption || $.trim(bookmark.caption) === "") ? undefined : bookmark.caption);
+                var stop = new TourStop(target, (!bookmark.caption || $.trim(bookmark.caption) === "") ? undefined : bookmark.caption);
                 stop.Description = bookmark.text;
                 stop.LapseTime = bookmark.lapseTime;
                 return stop;
             };
-            FormEditTour.tourstopToBookmark = function tourstopToBookmark(tourstop) {
+            FormEditTour.tourstopToBookmark = function tourstopToBookmark(tourstop, index) {
                 var url = CZ.UrlNav.vcelementToNavString(tourstop.Target);
                 var title = tourstop.Title;
-                var bookmark = new CZ.Tours.TourBookmark(tourstop.bookmarkId, url, title, tourstop.LapseTime, tourstop.Description);
-                bookmark.number = tourstop.Sequence;
+                var bookmark = new CZ.Tours.TourBookmark(url, title, tourstop.LapseTime, tourstop.Description);
+                bookmark.number = index + 1;
                 return bookmark;
             };
             FormEditTour.prototype.deleteTourAsync = function () {
                 return CZ.Service.deleteTour(this.tour.id);
             };
-            FormEditTour.prototype.createTourAsync = function () {
+            FormEditTour.prototype.putTourAsync = function (sequenceNum) {
                 var deferred = $.Deferred();
                 var self = this;
                 var stops = this.getStops();
                 var name = this.tourTitleInput.val();
                 var descr = this.tourDescriptionInput.val();
-                var category = "my tours";
+                var category = "tours";
                 var n = stops.length;
-                var request = CZ.Service.postTour(new CZ.UI.Tour(undefined, name, descr, category, n, stops));
+                var tourId = undefined;
+                if(this.tour) {
+                    category = this.tour.category;
+                    tourId = this.tour.id;
+                }
+                var request = CZ.Service.putTour2(new CZ.UI.Tour(tourId, name, descr, category, n, stops));
                 request.done(function (q) {
                     var tourBookmarks = new Array();
                     for(var j = 0; j < n; j++) {
                         var tourstop = stops[j];
-                        tourstop.bookmarkId = q.BookmarkId[j];
-                        var bookmark = FormEditTour.tourstopToBookmark(tourstop);
+                        var bookmark = FormEditTour.tourstopToBookmark(tourstop, j);
                         tourBookmarks.push(bookmark);
                     }
-                    var tour = new CZ.Tours.Tour(q.TourId, name, tourBookmarks, CZ.Tours.bookmarkTransition, CZ.Common.vc, category, "", CZ.Tours.tours.length, descr);
+                    var tour = new CZ.Tours.Tour(q.TourId, name, tourBookmarks, CZ.Tours.bookmarkTransition, CZ.Common.vc, category, "", sequenceNum, descr);
                     deferred.resolve(tour);
                 }).fail(function (q) {
                     deferred.reject(q);
-                });
-                return deferred.promise();
-            };
-            FormEditTour.prototype.updateTourAsync = function (sequenceNum) {
-                var _this = this;
-                if(!this.tour) {
-                    throw "Tour is undefined";
-                }
-                var deferred = $.Deferred();
-                var self = this;
-                var stops = this.getStops();
-                var name = this.tourTitleInput.val();
-                var descr = this.tourDescriptionInput.val();
-                var category = this.tour.category;
-                var n = this.tour.bookmarks.length;
-                var m = stops.length;
-                var deletedStops = [];
-                for(var j = 0; j < n; j++) {
-                    var bookmark = this.tour.bookmarks[j];
-                    var found = false;
-                    for(var k = 0; k < m; k++) {
-                        if(stops[k].bookmarkId === bookmark.id) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if(!found) {
-                        deletedStops.push(bookmark);
-                    }
-                }
-                var reqDel;
-                if(deletedStops.length > 0) {
-                    reqDel = CZ.Service.deleteBookmarks(this.tour.id, deletedStops);
-                } else {
-                    reqDel = $.Deferred();
-                    reqDel.resolve([]);
-                }
-                reqDel.fail(function (q) {
-                    deferred.reject(q);
-                });
-                reqDel.done(function (q) {
-                    var n = stops.length;
-                    var addedStops = new Array();
-                    for(var j = 0; j < n; j++) {
-                        var tourstop = stops[j];
-                        if(!tourstop.bookmarkId || tourstop.bookmarkId == "00000000-0000-0000-0000-000000000000") {
-                            addedStops.push(tourstop);
-                        }
-                    }
-                    var reqAdd;
-                    if(addedStops.length > 0) {
-                        reqAdd = CZ.Service.putBookmarks(new CZ.UI.Tour(_this.tour.id, name, descr, category, sequenceNum, addedStops));
-                    } else {
-                        reqAdd = $.Deferred();
-                        reqAdd.resolve([]);
-                    }
-                    reqAdd.fail(function (q) {
-                        deferred.reject(q);
-                    });
-                    reqAdd.done(function (q) {
-                        var m = addedStops.length;
-                        for(var j = 0; j < m; j++) {
-                            var tourstop = addedStops[j];
-                            tourstop.bookmarkId = q.BookmarkId[j];
-                        }
-                        var request = CZ.Service.putTour(new CZ.UI.Tour(_this.tour.id, name, descr, category, sequenceNum, stops));
-                        request.done(function (q) {
-                            var n = stops.length;
-                            var tourBookmarks = new Array();
-                            for(var j = 0; j < n; j++) {
-                                var tourstop = stops[j];
-                                tourstop.bookmarkId = q.BookmarkId[j];
-                                var bookmark = FormEditTour.tourstopToBookmark(tourstop);
-                                tourBookmarks.push(bookmark);
-                            }
-                            var tour = new CZ.Tours.Tour(q.TourId, name, tourBookmarks, CZ.Tours.bookmarkTransition, CZ.Common.vc, category, "", sequenceNum, descr);
-                            deferred.resolve(tour);
-                        }).fail(function (q) {
-                            deferred.reject(q);
-                        });
-                    }).fail(function (q) {
-                        deferred.reject(q);
-                    });
-                    ;
                 });
                 return deferred.promise();
             };
@@ -2965,6 +3202,7 @@ var CZ;
             };
             FormEditTour.prototype.initialize = function () {
                 var _this = this;
+                this.saveButton.prop('disabled', false);
                 if(this.tour == null) {
                     this.deleteButton.hide();
                     this.titleTextblock.text("Create Tour");
@@ -2980,42 +3218,55 @@ var CZ;
                         return self.onTargetElementSelected(arg);
                     };
                     self.hide();
+                    setTimeout(function () {
+                        if(CZ.Authoring.mode == "editTour-selectTarget") {
+                            CZ.Authoring.showMessageWindow("Click an element to select it as a tour stop.", "New tour stop", function () {
+                                if(CZ.Authoring.mode == "editTour-selectTarget") {
+                                    self.onTargetElementSelected(null);
+                                }
+                            });
+                        }
+                    }, 500);
                 });
                 this.saveButton.click(function (event) {
                     var message;
                     if(!_this.tourTitleInput.val()) {
-                        message = "Please enter the title";
+                        message = "Please enter the title.";
                     } else if(_this.tourStopsListBox.items.length == 0) {
-                        message = "Please add a tour stop to the tour";
+                        message = "Please add a tour stop to the tour.";
                     }
                     if(message) {
                         alert(message);
                         return;
                     }
                     var self = _this;
+                    _this.saveButton.prop('disabled', true);
                     if(_this.tour == null) {
-                        _this.createTourAsync().done(function (tour) {
+                        _this.putTourAsync(CZ.Tours.tours.length).done(function (tour) {
                             self.tour = tour;
                             CZ.Tours.tours.push(tour);
-                            self.initializeAsEdit();
-                            alert("Tour created.");
+                            _this.hide();
                         }).fail(function (f) {
                             if(console && console.error) {
                                 console.error("Failed to create a tour: " + f.status + " " + f.statusText);
                             }
                             alert("Failed to create a tour");
+                        }).done(function () {
+                            _this.saveButton.prop('disabled', false);
                         });
                     } else {
                         for(var i = 0, n = CZ.Tours.tours.length; i < n; i++) {
                             if(CZ.Tours.tours[i] === _this.tour) {
-                                _this.updateTourAsync(i).done(function (tour) {
+                                _this.putTourAsync(i).done(function (tour) {
                                     _this.tour = CZ.Tours.tours[i] = tour;
-                                    alert("Tour updated.");
+                                    _this.hide();
                                 }).fail(function (f) {
                                     if(console && console.error) {
                                         console.error("Failed to update a tour: " + f.status + " " + f.statusText);
                                     }
                                     alert("Failed to update a tour");
+                                }).always(function () {
+                                    _this.saveButton.prop('disabled', false);
                                 });
                                 break;
                             }
@@ -3098,23 +3349,21 @@ var CZ;
                 var lapseTime = 0;
                 for(var i = 0; i < n; i++) {
                     var stop = stops[i];
-                    stop.Sequence = i + 1;
                     stop.LapseTime = lapseTime;
                     lapseTime += CZ.Settings.tourDefaultTransitionTime;
                 }
             };
             FormEditTour.prototype.onTargetElementSelected = function (targetElement) {
-                CZ.Authoring.isActive = false;
                 CZ.Authoring.mode = "editTour";
+                CZ.Authoring.hideMessageWindow();
+                CZ.Authoring.isActive = false;
                 CZ.Authoring.callback = null;
-                var n = this.tourStopsListBox.items.length;
-                var stop = new TourStop("", targetElement, n + 1);
-                if(n > 0) {
-                    stop.LapseTime = ((this.tourStopsListBox.items[this.tourStopsListBox.items.length - 1]).data).LapseTime + CZ.Settings.tourDefaultTransitionTime;
-                } else {
-                    stop.LapseTime = 0;
+                if(targetElement) {
+                    var n = this.tourStopsListBox.items.length;
+                    var stop = new TourStop(targetElement);
+                    stop.LapseTime = n == 0 ? 0 : ((this.tourStopsListBox.items[this.tourStopsListBox.items.length - 1]).data).LapseTime + CZ.Settings.tourDefaultTransitionTime;
+                    this.tourStopsListBox.add(stop);
                 }
-                this.tourStopsListBox.add(stop);
                 this.show();
             };
             return FormEditTour;
@@ -3130,12 +3379,10 @@ var CZ;
         (function (Map) {
             function bookmark(ts) {
                 return {
-                    id: ts.bookmarkId,
                     name: ts.Title,
                     url: ts.NavigationUrl,
                     lapseTime: ts.LapseTime,
-                    description: ts.Description,
-                    sequenceId: ts.Sequence
+                    description: ts.Description
                 };
             }
             function tour(t) {
@@ -3143,7 +3390,7 @@ var CZ;
                 for(var i = 0, n = t.Stops.length; i < n; i++) {
                     bookmarks[i] = bookmark(t.Stops[i]);
                 }
-                return {
+                var tourRequest = {
                     id: t.Id,
                     name: t.Title,
                     description: t.Description,
@@ -3152,6 +3399,7 @@ var CZ;
                     sequence: t.Sequence,
                     bookmarks: bookmarks
                 };
+                return tourRequest;
             }
             Map.tour = tour;
             function timeline(t) {
@@ -3241,6 +3489,7 @@ var CZ;
         Service.collectionName = "";
         Service.superCollectionName = "";
         function getTimelines(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath("gettimelines");
             request.addParameter("supercollection", Service.superCollectionName);
@@ -3255,9 +3504,10 @@ var CZ;
             });
         }
         Service.getTimelines = getTimelines;
-        function getCollections() {
+        function getCollections(superCollectionName) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
-            request.addToPath(Service.superCollectionName);
+            request.addToPath(superCollectionName);
             request.addToPath("collections");
             return $.ajax({
                 type: "GET",
@@ -3268,6 +3518,7 @@ var CZ;
         }
         Service.getCollections = getCollections;
         function getStructure(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3282,6 +3533,7 @@ var CZ;
         }
         Service.getStructure = getStructure;
         function postData(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3296,10 +3548,11 @@ var CZ;
             });
         }
         Service.postData = postData;
-        function putCollection(c) {
+        function putCollection(superCollectionName, collectionName, c) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
-            request.addToPath(Service.superCollectionName);
-            request.addToPath(c.name);
+            request.addToPath(superCollectionName);
+            request.addToPath(collectionName);
             return $.ajax({
                 type: "PUT",
                 cache: false,
@@ -3311,6 +3564,7 @@ var CZ;
         }
         Service.putCollection = putCollection;
         function deleteCollection(c) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(c.name);
@@ -3324,6 +3578,7 @@ var CZ;
         }
         Service.deleteCollection = deleteCollection;
         function putTimeline(t) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3340,6 +3595,7 @@ var CZ;
         }
         Service.putTimeline = putTimeline;
         function deleteTimeline(t) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3355,6 +3611,7 @@ var CZ;
         }
         Service.deleteTimeline = deleteTimeline;
         function putExhibit(e) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3371,6 +3628,7 @@ var CZ;
         }
         Service.putExhibit = putExhibit;
         function deleteExhibit(e) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3386,6 +3644,7 @@ var CZ;
         }
         Service.deleteExhibit = deleteExhibit;
         function putContentItem(ci) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3402,6 +3661,7 @@ var CZ;
         }
         Service.putContentItem = putContentItem;
         function deleteContentItem(ci) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3416,27 +3676,12 @@ var CZ;
             });
         }
         Service.deleteContentItem = deleteContentItem;
-        function postTour(t) {
+        function putTour2(t) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
-            request.addToPath("tour");
-            console.log("[POST] " + request.url);
-            return $.ajax({
-                type: "POST",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify(Map.tour(t))
-            });
-        }
-        Service.postTour = postTour;
-        function putTour(t) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(Service.superCollectionName);
-            request.addToPath(Service.collectionName);
-            request.addToPath("tour");
+            request.addToPath("tour2");
             console.log("[PUT] " + request.url);
             return $.ajax({
                 type: "PUT",
@@ -3447,8 +3692,9 @@ var CZ;
                 data: JSON.stringify(Map.tour(t))
             });
         }
-        Service.putTour = putTour;
+        Service.putTour2 = putTour2;
         function deleteTour(tourId) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3466,52 +3712,13 @@ var CZ;
             });
         }
         Service.deleteTour = deleteTour;
-        function deleteBookmarks(tourId, bookmarks) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(Service.superCollectionName);
-            request.addToPath(Service.collectionName);
-            request.addToPath("bookmark");
-            console.log("[DELETE] " + request.url);
-            var bids = new Array(bookmarks.length);
-            for(var i = 0, n = bookmarks.length; i < n; i++) {
-                bids[i] = {
-                    id: bookmarks[i].id
-                };
-            }
-            return $.ajax({
-                type: "DELETE",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify({
-                    id: tourId,
-                    bookmarks: bids
-                })
-            });
-        }
-        Service.deleteBookmarks = deleteBookmarks;
-        function putBookmarks(t) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(Service.superCollectionName);
-            request.addToPath(Service.collectionName);
-            request.addToPath("bookmark");
-            console.log("[PUT] " + request.url);
-            return $.ajax({
-                type: "PUT",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify(Map.tour(t))
-            });
-        }
-        Service.putBookmarks = putBookmarks;
         function getTours() {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
             request.addToPath("tours");
+            console.log("[GET] " + request.url);
             return $.ajax({
                 type: "GET",
                 cache: false,
@@ -3520,7 +3727,114 @@ var CZ;
             });
         }
         Service.getTours = getTours;
+        function getSearch(query) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("Search");
+            var data = {
+                searchTerm: query,
+                supercollection: CZ.Service.superCollectionName,
+                collection: CZ.Service.collectionName
+            };
+            console.log("[GET] " + request.url);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data
+            });
+        }
+        Service.getSearch = getSearch;
+        function getBingImages(query, top, skip) {
+            if (typeof top === "undefined") { top = CZ.Settings.defaultBingSearchTop; }
+            if (typeof skip === "undefined") { skip = CZ.Settings.defaultBingSearchSkip; }
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getImages");
+            var data = {
+                query: query,
+                top: top,
+                skip: skip
+            };
+            console.log("[GET] " + request.url);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+        Service.getBingImages = getBingImages;
+        function getBingVideos(query, top, skip) {
+            if (typeof top === "undefined") { top = CZ.Settings.defaultBingSearchTop; }
+            if (typeof skip === "undefined") { skip = CZ.Settings.defaultBingSearchSkip; }
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getVideos");
+            var data = {
+                query: query,
+                top: top,
+                skip: skip
+            };
+            console.log("[GET] " + request.url);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+        Service.getBingVideos = getBingVideos;
+        function getBingDocuments(query, doctype, top, skip) {
+            if (typeof doctype === "undefined") { doctype = undefined; }
+            if (typeof top === "undefined") { top = CZ.Settings.defaultBingSearchTop; }
+            if (typeof skip === "undefined") { skip = CZ.Settings.defaultBingSearchSkip; }
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getDocuments");
+            var data = {
+                query: query,
+                doctype: doctype,
+                top: top,
+                skip: skip
+            };
+            console.log("[GET] " + request.url);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+        Service.getBingDocuments = getBingDocuments;
+        function getRecentTweets() {
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("twitter/getRecentTweets");
+            console.log("[GET] " + request.url);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                success: function (response) {
+                }
+            });
+        }
+        Service.getRecentTweets = getRecentTweets;
         function getServiceInformation() {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath("info");
             return $.ajax({
@@ -3532,6 +3846,7 @@ var CZ;
         }
         Service.getServiceInformation = getServiceInformation;
         function getContentPath(reference) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath(Service.superCollectionName);
             request.addToPath(Service.collectionName);
@@ -3545,8 +3860,8 @@ var CZ;
             });
         }
         Service.getContentPath = getContentPath;
-        getContentPath;
         function putExhibitContent(e, oldContentItems) {
+            CZ.Authoring.resetSessionTimer();
             var newGuids = e.contentItems.map(function (ci) {
                 return ci.guid;
             });
@@ -3563,6 +3878,7 @@ var CZ;
         }
         Service.putExhibitContent = putExhibitContent;
         function putProfile(displayName, email) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
             var user = {
@@ -3579,6 +3895,7 @@ var CZ;
         }
         Service.putProfile = putProfile;
         function deleteProfile(displayName) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
             var user = {
@@ -3595,6 +3912,7 @@ var CZ;
         Service.deleteProfile = deleteProfile;
         function getProfile(displayName) {
             if (typeof displayName === "undefined") { displayName = ""; }
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
             if(displayName != "") {
@@ -3605,9 +3923,201 @@ var CZ;
                 cache: false,
                 contentType: "application/json",
                 url: request.url
+            }).done(function (profile) {
+                if(!profile.id) {
+                    return null;
+                }
+                return profile;
             });
         }
         Service.getProfile = getProfile;
+        function getMimeTypeByUrl(url) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("mimetypebyurl");
+            if(url == "") {
+                return result;
+            }
+            request.addParameter("url", url);
+            $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                async: false
+            }).done(function (mime) {
+                if(mime) {
+                    result = mime;
+                }
+            });
+            return result;
+        }
+        Service.getMimeTypeByUrl = getMimeTypeByUrl;
+        function getUserFavorites() {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.getUserFavorites = getUserFavorites;
+        function deleteUserFavorite(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            if(guid == "") {
+                return null;
+            }
+            request.addToPath(guid);
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.deleteUserFavorite = deleteUserFavorite;
+        function putUserFavorite(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            if(guid == "") {
+                return null;
+            }
+            request.addToPath(guid);
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.putUserFavorite = putUserFavorite;
+        function getUserFeatured(guid) {
+            if (typeof guid === "undefined") { guid = "default"; }
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            request.addToPath(guid);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.getUserFeatured = getUserFeatured;
+        function deleteUserFeatured(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            if(guid == "") {
+                return null;
+            }
+            request.addToPath(guid);
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.deleteUserFeatured = deleteUserFeatured;
+        function putUserFeatured(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            if(guid == "") {
+                return null;
+            }
+            request.addToPath(guid);
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.putUserFeatured = putUserFeatured;
+        function putTriplet(subject, predicate, object) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                data: JSON.stringify({
+                    Subject: subject,
+                    Predicate: predicate,
+                    Object: object
+                })
+            });
+        }
+        Service.putTriplet = putTriplet;
+        function getTriplets(subject, predicate, object) {
+            if (typeof predicate === "undefined") { predicate = null; }
+            if (typeof object === "undefined") { object = null; }
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            request.addParameter("subject", encodeURIComponent(subject));
+            if(predicate != null) {
+                request.addParameter("predicate", encodeURIComponent(predicate));
+            }
+            if(object != null) {
+                request.addParameter("object", encodeURIComponent(object));
+            }
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.getTriplets = getTriplets;
+        function deleteTriplet(subject, predicate, object) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                data: JSON.stringify({
+                    Subject: subject,
+                    Predicate: predicate,
+                    Object: object
+                })
+            });
+        }
+        Service.deleteTriplet = deleteTriplet;
+        function getPrefixes() {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            request.addToPath("prefixes");
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        Service.getPrefixes = getPrefixes;
     })(CZ.Service || (CZ.Service = {}));
     var Service = CZ.Service;
 })(CZ || (CZ = {}));
@@ -3643,69 +4153,35 @@ var CZ;
             31
         ];
         function getCoordinateFromYMD(year, month, day) {
-            var sign = (year != 0) ? year / Math.abs(year) : 1;
-            var i = 0;
-            var coordinate = year;
-            var days = day;
-            var daysPerYear = isLeapYear(year) ? 366 : 365;
-            for(i = 0; i < month; i++) {
-                days += Dates.daysInMonth[i];
-                if((i === 1) && (isLeapYear(year))) {
-                    days++;
-                }
-            }
-            if((month > 1) && (isLeapYear(year))) {
-                coordinate += sign * days / daysPerYear;
-            } else {
-                coordinate += (sign >= 0) ? sign * days / daysPerYear : sign * (1 - days / daysPerYear);
-            }
-            if(year < 0) {
-                coordinate += 1;
-            }
-            coordinate -= 1 / daysPerYear;
-            return coordinate;
+            var sign = (year === -1) ? 1 : year / Math.abs(year), isLeap = isLeapYear(year), daysInYear = isLeap ? 366 : 365, coord = (year > -1) ? year : year + 1;
+            var sumDaysOfMonths = function (s, d, i) {
+                return s + (i < month) * d;
+            };
+            var days = Dates.daysInMonth.reduce(sumDaysOfMonths, +(isLeap && month > 1)) + day;
+            coord += (days - 1) / daysInYear;
+            coord = roundDecimal(coord, CZ.Settings.allowedMathImprecisionDecimals);
+            return coord;
         }
         Dates.getCoordinateFromYMD = getCoordinateFromYMD;
-        function getYMDFromCoordinate(coord) {
-            var sign = (coord === 0) ? 1 : coord / Math.abs(coord);
-            var day = 0, month = 0, year = 0;
-            var idxYear, countLeapYears = 0;
-            year = (coord >= 0) ? Math.floor(coord) : Math.floor(coord) + 1;
-            var daysPerYear = isLeapYear(year) ? 366 : 365;
-            var day, month;
-            var countDays;
-            countDays = Math.abs(coord) - Math.abs(year) + sign * 1. / daysPerYear;
-            if(sign < 0) {
-                countDays = 1 - countDays;
+        function getYMDFromCoordinate(coord, MarkerCorrection) {
+            if (typeof MarkerCorrection === "undefined") { MarkerCorrection = false; }
+            var absCoord = Math.abs(coord), floorCoord = Math.floor(coord), sign = (coord === 0) ? 1 : coord / absCoord, day = 0, month = 0, year = (coord >= 1) ? floorCoord : floorCoord - 1, isLeap = isLeapYear(year), daysInYear = isLeap ? 366 : 365, daysFraction = sign * (absCoord - Math.abs(floorCoord));
+            day = Math.round(daysFraction * daysInYear);
+            if(MarkerCorrection) {
+                day = Math.floor(daysFraction * daysInYear);
             }
-            var idxMonth = 0;
-            while(countDays > Dates.daysInMonth[idxMonth] / daysPerYear) {
-                countDays -= Dates.daysInMonth[idxMonth] / daysPerYear;
-                if(isLeapYear(year) && (idxMonth === 1)) {
-                    countDays -= 1 / daysPerYear;
+            day += +(day < daysInYear);
+            while(day > Dates.daysInMonth[month] + (+(isLeap && month === 1))) {
+                day -= Dates.daysInMonth[month];
+                if(isLeap && month === 1) {
+                    day--;
                 }
-                idxMonth++;
-            }
-            month = idxMonth;
-            day = countDays * daysPerYear;
-            while(Math.round(day) <= 0) {
-                month--;
-                if(month === -1) {
-                    year--;
-                    month = 11;
-                }
-                day = Dates.daysInMonth[month] + Math.round(day);
-                if(isLeapYear(year) && (month === 1)) {
-                    day++;
-                }
-            }
-            if(coord < 0) {
-                year--;
+                month++;
             }
             return {
                 year: year,
                 month: month,
-                day: Math.round(day)
+                day: day
             };
         }
         Dates.getYMDFromCoordinate = getYMDFromCoordinate;
@@ -3724,14 +4200,18 @@ var CZ;
                 year: coordinate,
                 regime: "CE"
             };
-            if(coordinate < -999999999) {
+            var eps_const = 100000;
+            if(coordinate <= -999999999) {
                 year.year = (year.year - 1) / (-1000000000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ga';
-            } else if(coordinate < -999999) {
+            } else if(coordinate <= -999999) {
                 year.year = (year.year - 1) / (-1000000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ma';
-            } else if(coordinate < -9999) {
+            } else if(coordinate <= -9999) {
                 year.year = (year.year - 1) / (-1000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ka';
             } else if(coordinate < 1) {
                 year.year = (year.year - 1) / (-1);
@@ -3774,11 +4254,7 @@ var CZ;
         }
         Dates.getPresent = getPresent;
         function isLeapYear(year) {
-            if(year >= 1582 && (year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0))) {
-                return true;
-            } else {
-                return false;
-            }
+            return (year >= 1582 && (year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0)));
         }
         Dates.isLeapYear = isLeapYear;
         function numberofLeap(year) {
@@ -3795,6 +4271,9 @@ var CZ;
             return years1;
         }
         Dates.numberofLeap = numberofLeap;
+        function roundDecimal(decimal, precision) {
+            return Math.round(decimal * Math.pow(10, precision)) / Math.pow(10, precision);
+        }
     })(CZ.Dates || (CZ.Dates = {}));
     var Dates = CZ.Dates;
 })(CZ || (CZ = {}));
@@ -3834,12 +4313,16 @@ var CZ;
         Authoring.mode = null;
         Authoring.contentItemMode = null;
         Authoring.showCreateTimelineForm = null;
+        Authoring.showCreateRootTimelineForm = null;
         Authoring.showEditTimelineForm = null;
         Authoring.showCreateExhibitForm = null;
         Authoring.showEditExhibitForm = null;
         Authoring.showEditContentItemForm = null;
         Authoring.showEditTourForm = null;
+        Authoring.showMessageWindow = null;
+        Authoring.hideMessageWindow = null;
         Authoring.callback = null;
+        Authoring.timer;
         function isIntersecting(te, obj) {
             switch(obj.type) {
                 case "timeline":
@@ -3852,12 +4335,12 @@ var CZ;
         function isIncluded(tp, obj) {
             switch(obj.type) {
                 case "infodot":
-                    return (tp.x <= obj.infodotDescription.date && tp.y <= obj.y && tp.x + tp.width >= obj.infodotDescription.date && tp.y + tp.height >= obj.y + obj.height);
+                    return (tp.x <= obj.infodotDescription.date && tp.x + tp.width >= obj.infodotDescription.date && tp.y + tp.height >= obj.y + obj.height);
                     break;
                 case "timeline":
                 case "rectangle":
                 case "circle":
-                    return (tp.x <= obj.x + CZ.Settings.allowedMathImprecision && tp.y <= obj.y + CZ.Settings.allowedMathImprecision && tp.x + tp.width >= obj.x + obj.width - CZ.Settings.allowedMathImprecision && tp.y + tp.height >= obj.y + obj.height - CZ.Settings.allowedMathImprecision);
+                    return (tp.x <= obj.x + CZ.Settings.allowedMathImprecision && tp.x + tp.width >= obj.x + obj.width - CZ.Settings.allowedMathImprecision && tp.y + tp.height >= obj.y + obj.height - CZ.Settings.allowedMathImprecision);
                 default:
                     return true;
             }
@@ -3866,7 +4349,7 @@ var CZ;
             var i = 0;
             var len = 0;
             var selfIntersection = false;
-            if(!tp) {
+            if(!tp || tp.guid === null) {
                 return true;
             }
             if(!isIncluded(tp, tc) && tp.id !== "__root__") {
@@ -3986,6 +4469,12 @@ var CZ;
                 t.editButton.width = t.titleObject.height;
                 t.editButton.height = t.titleObject.height;
             }
+            if(typeof t.favoriteBtn !== "undefined") {
+                t.favoriteBtn.x = t.x + t.width - 1.8 * t.titleObject.height;
+                t.favoriteBtn.y = t.titleObject.y + 0.15 * t.titleObject.height;
+                t.favoriteBtn.width = 0.7 * t.titleObject.height;
+                t.favoriteBtn.height = 0.7 * t.titleObject.height;
+            }
         }
         Authoring.modeMouseHandlers = {
             createTimeline: {
@@ -4024,6 +4513,7 @@ var CZ;
             createExhibit: {
                 mousemove: function () {
                     if(CZ.Authoring.isDragging && _hovered.type === "timeline") {
+                        updateNewCircle();
                     }
                 },
                 mouseup: function () {
@@ -4085,6 +4575,8 @@ var CZ;
             });
             Authoring.showCreateTimelineForm = formHandlers && formHandlers.showCreateTimelineForm || function () {
             };
+            Authoring.showCreateRootTimelineForm = formHandlers && formHandlers.showCreateRootTimelineForm || function () {
+            };
             Authoring.showEditTimelineForm = formHandlers && formHandlers.showEditTimelineForm || function () {
             };
             Authoring.showCreateExhibitForm = formHandlers && formHandlers.showCreateExhibitForm || function () {
@@ -4095,9 +4587,14 @@ var CZ;
             };
             Authoring.showEditTourForm = formHandlers && formHandlers.showEditTourForm || function () {
             };
+            Authoring.showMessageWindow = formHandlers && formHandlers.showMessageWindow || function (mess, title) {
+            };
+            Authoring.hideMessageWindow = formHandlers && formHandlers.hideMessageWindow || function () {
+            };
         }
         Authoring.initialize = initialize;
         function updateTimeline(t, prop) {
+            var deffered = new jQuery.Deferred();
             var temp = {
                 x: Number(prop.start),
                 y: t.y,
@@ -4109,22 +4606,35 @@ var CZ;
                 t.x = temp.x;
                 t.width = temp.width;
                 t.endDate = prop.end;
-            }
-            t.title = prop.title;
-            updateTimelineTitle(t);
-            return CZ.Service.putTimeline(t).then(function (success) {
-                t.id = "t" + success;
-                t.guid = success;
-                t.titleObject.id = "t" + success + "__header__";
-                if(!t.parent.guid) {
-                    document.location.reload(true);
-                } else {
-                    CZ.Common.vc.virtualCanvas("requestInvalidate");
+                if(t.children.length < 3) {
+                    t.height = Math.min.apply(Math, [
+                        t.parent.height * CZ.Layout.timelineHeightRate, 
+                        t.width * CZ.Settings.timelineMinAspect, 
+                        t.height
+                    ]);
                 }
-            }, function (error) {
-            });
+                t.title = prop.title;
+                updateTimelineTitle(t);
+                CZ.Service.putTimeline(t).then(function (success) {
+                    t.id = "t" + success;
+                    t.guid = success;
+                    t.titleObject.id = "t" + success + "__header__";
+                    if(!t.parent.guid) {
+                        document.location.reload(true);
+                    } else {
+                        CZ.Common.vc.virtualCanvas("requestInvalidate");
+                    }
+                    deffered.resolve(t);
+                }, function (error) {
+                    deffered.reject(error);
+                });
+            } else {
+                deffered.reject('Timeline intersects with parent timeline or other siblings');
+            }
+            return deffered.promise();
         }
         Authoring.updateTimeline = updateTimeline;
+        ;
         function removeTimeline(t) {
             var deferred = $.Deferred();
             CZ.Service.deleteTimeline(t).then(function (updateCanvas) {
@@ -4158,10 +4668,10 @@ var CZ;
                     newExhibit = renewExhibit(newExhibit);
                     newExhibit.id = "e" + response.ExhibitId;
                     CZ.Common.vc.virtualCanvas("requestInvalidate");
-                    deferred.resolve();
+                    deferred.resolve(newExhibit);
                 }, function (error) {
                     console.log("Error connecting to service: update exhibit.\n" + error.responseText);
-                    deferred.reject();
+                    deferred.reject(error);
                 });
             } else {
                 deferred.reject();
@@ -4205,7 +4715,7 @@ var CZ;
                     deferred.resolve();
                 }, function (error) {
                     console.log("Error connecting to service: update content item.\n" + error.responseText);
-                    deferred.reject();
+                    deferred.reject(error);
                 });
             } else {
                 deferred.reject();
@@ -4243,7 +4753,7 @@ var CZ;
         function validateExhibitData(date, title, contentItems) {
             var isValid = date !== false;
             isValid = isValid && CZ.Authoring.isNotEmpty(title);
-            isValid = isValid && CZ.Authoring.validateContentItems(contentItems);
+            isValid = isValid && CZ.Authoring.validateContentItems(contentItems, null);
             return isValid;
         }
         Authoring.validateExhibitData = validateExhibitData;
@@ -4256,10 +4766,10 @@ var CZ;
         }
         Authoring.isNotEmpty = isNotEmpty;
         function isIntervalPositive(start, end) {
-            return (parseFloat(start) < parseFloat(end));
+            return (parseFloat(start) + 1 / 366 <= parseFloat(end));
         }
         Authoring.isIntervalPositive = isIntervalPositive;
-        function validateContentItems(contentItems) {
+        function validateContentItems(contentItems, mediaInput) {
             var isValid = true;
             if(contentItems.length == 0) {
                 return false;
@@ -4268,11 +4778,19 @@ var CZ;
             while(contentItems[i] != null) {
                 var ci = contentItems[i];
                 isValid = isValid && CZ.Authoring.isNotEmpty(ci.title) && CZ.Authoring.isNotEmpty(ci.uri) && CZ.Authoring.isNotEmpty(ci.mediaType);
+                var mime;
+                if(ci.mediaType.toLowerCase() !== "video") {
+                    mime = CZ.Service.getMimeTypeByUrl(ci.uri);
+                }
                 if(ci.mediaType.toLowerCase() === "image") {
-                    var imageReg = /\.(jpg|jpeg|png)$/i;
+                    var imageReg = /\.(jpg|jpeg|png|gif)$/i;
                     if(!imageReg.test(ci.uri)) {
-                        alert("Sorry, only JPG/PNG images are supported");
-                        isValid = false;
+                        if(mime != "image/jpg" && mime != "image/jpeg" && mime != "image/gif" && mime != "image/png") {
+                            if(mediaInput) {
+                                mediaInput.showError("Sorry, only JPG/PNG/GIF images are supported.");
+                            }
+                            isValid = false;
+                        }
                     }
                 } else if(ci.mediaType.toLowerCase() === "video") {
                     var youtube = /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|[\S\?\&]+&v=|\/user\/\S+))([^\/&#]{10,12})/;
@@ -4286,17 +4804,36 @@ var CZ;
                         ci.uri = "http://player.vimeo.com/video/" + vimeoVideoId;
                     } else if(vimeoEmbed.test(ci.uri)) {
                     } else {
-                        alert("Sorry, only YouTube or Vimeo videos are supported");
+                        if(mediaInput) {
+                            mediaInput.showError("Sorry, only YouTube or Vimeo videos are supported.");
+                        }
                         isValid = false;
                     }
                 } else if(ci.mediaType.toLowerCase() === "pdf") {
-                    var pdf = /\.(pdf)$/i;
-                    var docs = /\S+docs.google.com\S+$/i;
-                    if(pdf.test(ci.uri)) {
-                        ci.uri = "http://docs.google.com/viewer?url=" + encodeURI(ci.uri) + "&embedded=true";
-                    } else if(docs.test(ci.uri)) {
-                    } else {
-                        alert("Sorry, only PDF extension is supported");
+                    var pdf = /\.(pdf)$|\.(pdf)\?/i;
+                    if(!pdf.test(ci.uri)) {
+                        if(mime != "application/pdf") {
+                            if(mediaInput) {
+                                mediaInput.showError("Sorry, only PDF extension is supported.");
+                            }
+                            isValid = false;
+                        }
+                    }
+                } else if(ci.mediaType.toLowerCase() === "skydrive-document") {
+                    var skydrive = /skydrive\.live\.com\/embed/;
+                    if(!skydrive.test(ci.uri)) {
+                        alert("This is not a Skydrive embed link.");
+                        isValid = false;
+                    }
+                } else if(ci.mediaType.toLowerCase() === "skydrive-image") {
+                    var splited = ci.uri.split(' ');
+                    var skydrive = /skydrive\.live\.com\/embed/;
+                    var width = /[0-9]/;
+                    var height = /[0-9]/;
+                    if(!skydrive.test(splited[0]) || !width.test(splited[1]) || !height.test(splited[2])) {
+                        if(mediaInput) {
+                            mediaInput.showError("This is not a Skydrive embed link.");
+                        }
                         isValid = false;
                     }
                 }
@@ -4308,6 +4845,19 @@ var CZ;
             return isValid;
         }
         Authoring.validateContentItems = validateContentItems;
+        function showSessionForm() {
+            CZ.HomePageViewModel.sessionForm.show();
+        }
+        Authoring.showSessionForm = showSessionForm;
+        function resetSessionTimer() {
+            if(CZ.Authoring.timer != null) {
+                clearTimeout(CZ.Authoring.timer);
+                CZ.Authoring.timer = setTimeout(function () {
+                    showSessionForm();
+                }, (CZ.Settings.sessionTime - 60) * 1000);
+            }
+        }
+        Authoring.resetSessionTimer = resetSessionTimer;
     })(CZ.Authoring || (CZ.Authoring = {}));
     var Authoring = CZ.Authoring;
 })(CZ || (CZ = {}));
@@ -4423,9 +4973,7 @@ var CZ;
             };
             FormToursList.prototype.show = function () {
                 var self = this;
-                $(window).resize(function (e) {
-                    return self.onWindowResize(e);
-                });
+                $(window).resize(this.onWindowResize);
                 this.onWindowResize(null);
                 _super.prototype.show.call(this, {
                     effect: "slide",
@@ -4435,19 +4983,20 @@ var CZ;
                 this.activationSource.addClass("active");
             };
             FormToursList.prototype.close = function () {
-                $(window).unbind("resize");
+                var _this = this;
+                $(window).unbind("resize", this.onWindowResize);
                 _super.prototype.close.call(this, {
                     effect: "slide",
                     direction: "right",
                     duration: 500,
                     complete: function () {
+                        _this.container.find("cz-form-errormsg").hide();
+                        _this.container.find("#tours").empty();
+                        _this.toursListBox.container.empty();
                     }
                 });
                 CZ.Authoring.isActive = false;
                 this.activationSource.removeClass("active");
-                this.container.find("cz-form-errormsg").hide();
-                this.container.find("#tours").empty();
-                this.toursListBox.container.empty();
             };
             FormToursList.prototype.onTakeTour = function (tour) {
                 this.close();
@@ -4470,6 +5019,178 @@ var CZ;
 })(CZ || (CZ = {}));
 var CZ;
 (function (CZ) {
+    (function (UI) {
+        var TourPlayer = (function () {
+            function TourPlayer(container, playerInfo) {
+                this.container = container;
+                this.tour = playerInfo.context;
+                this.playPauseButton = this.container.find(playerInfo.playPauseButton);
+                this.nextButton = this.container.find(playerInfo.nextButton);
+                this.prevButton = this.container.find(playerInfo.prevButton);
+                this.volButton = this.container.find(playerInfo.volButton);
+                this.playPauseButton.off();
+                this.nextButton.off();
+                this.prevButton.off();
+                this.volButton.off();
+                this.initialize();
+            }
+            TourPlayer.prototype.initialize = function () {
+                var _this = this;
+                this.playPauseButton.attr("state", "pause");
+                this.volButton.attr("state", "on");
+                this.playPauseButton.click(function (event) {
+                    var state = _this.playPauseButton.attr("state");
+                    var stateHandlers = {
+                        play: function () {
+                            _this.play();
+                        },
+                        pause: function () {
+                            _this.pause();
+                        }
+                    };
+                    stateHandlers[state]();
+                });
+                this.nextButton.click(function (event) {
+                    _this.next();
+                });
+                this.prevButton.click(function (event) {
+                    _this.prev();
+                });
+                this.volButton.click(function (event) {
+                    var state = _this.volButton.attr("state");
+                    var stateHandlers = {
+                        on: function () {
+                            _this.volumeOff();
+                        },
+                        off: function () {
+                            _this.volumeOn();
+                        }
+                    };
+                    stateHandlers[state]();
+                });
+            };
+            TourPlayer.prototype.play = function () {
+                this.playPauseButton.attr("state", "pause");
+                CZ.Tours.tourResume();
+            };
+            TourPlayer.prototype.pause = function () {
+                this.playPauseButton.attr("state", "play");
+                CZ.Tours.tourPause();
+            };
+            TourPlayer.prototype.next = function () {
+                CZ.Tours.tourNext();
+            };
+            TourPlayer.prototype.prev = function () {
+                CZ.Tours.tourPrev();
+            };
+            TourPlayer.prototype.exit = function () {
+                CZ.Tours.tourAbort();
+            };
+            TourPlayer.prototype.volumeOn = function () {
+                this.volButton.attr("state", "on");
+                CZ.Tours.isNarrationOn = true;
+                this.tour.audioElement.volume = 1;
+            };
+            TourPlayer.prototype.volumeOff = function () {
+                this.volButton.attr("state", "off");
+                CZ.Tours.isNarrationOn = false;
+                this.tour.audioElement.volume = 0;
+            };
+            return TourPlayer;
+        })();
+        UI.TourPlayer = TourPlayer;        
+        var FormTourCaption = (function (_super) {
+            __extends(FormTourCaption, _super);
+            function FormTourCaption(container, formInfo) {
+                        _super.call(this, container, formInfo);
+                this.minButton = this.container.find(formInfo.minButton);
+                this.captionTextarea = this.container.find(formInfo.captionTextarea);
+                this.tourPlayerContainer = this.container.find(formInfo.tourPlayerContainer);
+                this.bookmarksCount = this.container.find(formInfo.bookmarksCount);
+                this.tour = formInfo.context;
+                this.tourPlayer = new CZ.UI.TourPlayer(this.tourPlayerContainer, {
+                    playPauseButton: "div:nth-child(2)",
+                    nextButton: "div:nth-child(3)",
+                    prevButton: "div:nth-child(1)",
+                    volButton: "div:nth-child(4)",
+                    context: this.tour
+                });
+                this.minButton.off();
+                this.initialize();
+            }
+            FormTourCaption.prototype.initialize = function () {
+                var _this = this;
+                this.titleTextblock.text(this.tour.title);
+                this.bookmarksCount.text("Slide 1 of " + this.tour.bookmarks.length);
+                this.captionTextarea.css("opacity", 0);
+                this.isMinimized = false;
+                this.minButton.click(function (event) {
+                    _this.minimize();
+                });
+            };
+            FormTourCaption.prototype.hideBookmark = function () {
+                this.captionTextarea.css("opacity", 0);
+            };
+            FormTourCaption.prototype.showBookmark = function (bookmark) {
+                this.captionTextarea.text(bookmark.text);
+                this.bookmarksCount.text("Slide " + bookmark.number + " of " + this.tour.bookmarks.length);
+                this.captionTextarea.stop();
+                this.captionTextarea.animate({
+                    opacity: 1
+                });
+            };
+            FormTourCaption.prototype.showTourEndMessage = function () {
+                this.captionTextarea.text(CZ.Tours.TourEndMessage);
+                this.bookmarksCount.text("Start a tour");
+            };
+            FormTourCaption.prototype.setPlayPauseButtonState = function (state) {
+                this.tourPlayer.playPauseButton.attr("state", state);
+            };
+            FormTourCaption.prototype.show = function () {
+                _super.prototype.show.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500
+                });
+                this.activationSource.addClass("active");
+            };
+            FormTourCaption.prototype.close = function () {
+                var _this = this;
+                _super.prototype.close.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500,
+                    complete: function () {
+                        _this.tourPlayer.exit();
+                        CZ.Common.hashHandle = true;
+                    }
+                });
+                this.activationSource.removeClass("active");
+            };
+            FormTourCaption.prototype.minimize = function () {
+                if(this.isMinimized) {
+                    this.contentContainer.show({
+                        effect: "slide",
+                        direction: "up",
+                        duration: 500
+                    });
+                } else {
+                    this.contentContainer.hide({
+                        effect: "slide",
+                        direction: "up",
+                        duration: 500
+                    });
+                }
+                this.isMinimized = !this.isMinimized;
+            };
+            return FormTourCaption;
+        })(CZ.UI.FormBase);
+        UI.FormTourCaption = FormTourCaption;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
     (function (Tours) {
         Tours.isTourWindowVisible = false;
         Tours.isBookmarksWindowVisible = false;
@@ -4483,15 +5204,16 @@ var CZ;
         Tours.pauseTourAtAnyAnimation = false;
         Tours.bookmarkAnimation;
         var isToursDebugEnabled = false;
+        Tours.TourEndMessage = "Thank you for watching this tour!";
+        Tours.tourCaptionFormContainer;
+        Tours.tourCaptionForm;
         var TourBookmark = (function () {
-            function TourBookmark(id, url, caption, lapseTime, text) {
-                this.id = id;
+            function TourBookmark(url, caption, lapseTime, text) {
                 this.url = url;
                 this.caption = caption;
                 this.lapseTime = lapseTime;
                 this.text = text;
                 this.duration = undefined;
-                this.number = 0;
                 this.elapsed = 0;
                 if(this.text === null) {
                     this.text = "";
@@ -4545,13 +5267,13 @@ var CZ;
                     throw "Tour has no bookmarks";
                 }
                 var self = this;
-                this.thumbnailUrl = CZ.Settings.contentItemThumbnailBaseUri + id + '.png';
+                this.thumbnailUrl = CZ.Settings.contentItemThumbnailBaseUri + id + '.jpg';
                 bookmarks.sort(function (b1, b2) {
                     return b1.lapseTime - b2.lapseTime;
                 });
                 for(var i = 1; i < bookmarks.length; i++) {
-                    bookmarks[i - 1].duration = bookmarks[i].lapseTime - bookmarks[i - 1].lapseTime;
                     bookmarks[i - 1].number = i;
+                    bookmarks[i - 1].duration = bookmarks[i].lapseTime - bookmarks[i - 1].lapseTime;
                 }
                 bookmarks[bookmarks.length - 1].duration = 10;
                 bookmarks[bookmarks.length - 1].number = bookmarks.length;
@@ -4588,7 +5310,7 @@ var CZ;
                     });
                     self.audioElement.addEventListener("progress", function () {
                         if(self.audioElement && self.audioElement.buffered.length > 0) {
-                            if(isToursDebugEnabled && window.console && console.log("Tour " + self.title + " downloaded " + (self.audio.buffered.end(self.audio.buffered.length - 1) / self.audio.duration))) {
+                            if(isToursDebugEnabled && window.console && console.log("Tour " + self.title + " downloaded " + (self.audioElement.buffered.end(self.audioElement.buffered.length - 1) / self.audioElement.duration))) {
                                 ;
                             }
                         }
@@ -4648,13 +5370,21 @@ var CZ;
                     if(isToursDebugEnabled && window.console && console.log("Transitioning to the bm index " + newBookmark)) {
                         ;
                     }
+                    var targetVisible = getBookmarkVisible(bookmark);
+                    if(!targetVisible) {
+                        if(isToursDebugEnabled && window.console && console.log("bookmark index " + newBookmark + " references to nonexistent item")) {
+                            ;
+                        }
+                        goBack ? self.prev() : self.next();
+                        return;
+                    }
                     self.currentPlace.animationId = self.zoomTo(getBookmarkVisible(bookmark), self.onGoToSuccess, self.onGoToFailure, bookmark.url);
                 };
                 self.startBookmarkAudio = function startBookmarkAudio(bookmark) {
                     if(!self.audio) {
                         return;
                     }
-                    if(isToursDebugEnabled && window.console && console.log("playing source: " + self.audio.currentSrc)) {
+                    if(isToursDebugEnabled && window.console && console.log("playing source: " + self.audioElement.currentSrc)) {
                         ;
                     }
                     self.audioElement.pause();
@@ -4738,7 +5468,12 @@ var CZ;
                     }
                     self.state = 'play';
                     var visible = self.vc.virtualCanvas("getViewport").visible;
-                    if(self.currentPlace != null && self.currentPlace.bookmark != null && CZ.Common.compareVisibles(visible, getBookmarkVisible(self.bookmarks[self.currentPlace.bookmark]))) {
+                    var bookmarkVisible = getBookmarkVisible(self.bookmarks[self.currentPlace.bookmark]);
+                    if(bookmarkVisible === null) {
+                        self.next();
+                        return;
+                    }
+                    if(self.currentPlace != null && self.currentPlace.bookmark != null && CZ.Common.compareVisibles(visible, bookmarkVisible)) {
                         self.currentPlace = {
                             type: 'bookmark',
                             bookmark: self.currentPlace.bookmark
@@ -4750,6 +5485,7 @@ var CZ;
                         };
                     }
                     var bookmark = self.bookmarks[self.currentPlace.bookmark];
+                    showBookmark(Tours.tour, bookmark);
                     var isInTransitionToFirstBookmark = (self.currentPlace.bookmark == 0 && self.currentPlace.type == 'goto');
                     if(self.currentPlace.type == 'bookmark' || self.currentPlace.bookmark != 0) {
                         self.RaiseBookmarkStarted(bookmark);
@@ -4801,15 +5537,13 @@ var CZ;
                     }
                 };
                 self.next = function next() {
-                    if(self.currentPlace.bookmark != self.bookmarks.length - 1) {
-                        if(self.state === 'play') {
-                            if(self.timerOnBookmarkIsOver) {
-                                clearTimeout(self.timerOnBookmarkIsOver);
-                            }
-                            self.timerOnBookmarkIsOver = undefined;
+                    if(self.state === 'play') {
+                        if(self.timerOnBookmarkIsOver) {
+                            clearTimeout(self.timerOnBookmarkIsOver);
                         }
-                        self.onBookmarkIsOver(false);
+                        self.timerOnBookmarkIsOver = undefined;
                     }
+                    self.onBookmarkIsOver(false);
                 };
                 self.prev = function prev() {
                     if(self.currentPlace.bookmark == 0) {
@@ -4862,11 +5596,9 @@ var CZ;
                 isAudioEnabled = Tours.isNarrationOn;
             }
             if(newTour != undefined) {
-                var tourControlDiv = document.getElementById("tour_control");
-                tourControlDiv.style.display = "block";
                 Tours.tour = newTour;
                 Tours.tour.tour_TourFinished.push(function (tour) {
-                    hideBookmark(tour);
+                    showTourEndMessage();
                     tourPause();
                     hideBookmarks();
                 });
@@ -4888,8 +5620,6 @@ var CZ;
                 tourPause();
                 Tours.tour.isTourPlayRequested = false;
             }
-            var tourControlDiv = document.getElementById("tour_control");
-            tourControlDiv.style.display = "none";
             if(Tours.tour) {
                 hideBookmarks();
                 $("#bookmarks .header").text("");
@@ -4913,6 +5643,7 @@ var CZ;
         }
         Tours.tourNext = tourNext;
         function tourPause() {
+            Tours.tourCaptionForm.setPlayPauseButtonState("play");
             if(Tours.tour != undefined) {
                 $("#tour_playpause").attr("src", "/images/tour_play_off.jpg");
                 Tours.tour.pause();
@@ -4923,9 +5654,11 @@ var CZ;
         }
         Tours.tourPause = tourPause;
         function tourResume() {
+            Tours.tourCaptionForm.setPlayPauseButtonState("pause");
             $("#tour_playpause").attr("src", "/images/tour_pause_off.jpg");
             Tours.tour.play();
         }
+        Tours.tourResume = tourResume;
         function tourPlayPause() {
             if(Tours.tour != undefined) {
                 if(Tours.tour.state == "pause") {
@@ -4941,8 +5674,9 @@ var CZ;
             $("#bookmarks").hide();
             Tours.isBookmarksWindowVisible = false;
             var curURL = CZ.UrlNav.getURL();
-            delete curURL.hash.params["tour"];
-            delete curURL.hash.params["bookmark"];
+            if(curURL.hash.params["tour"]) {
+                delete curURL.hash.params["tour"];
+            }
             CZ.UrlNav.setURL(curURL);
         }
         Tours.tourAbort = tourAbort;
@@ -4952,111 +5686,19 @@ var CZ;
         }
         Tours.initializeToursUI = initializeToursUI;
         function initializeToursContent() {
-            var toursUI = $('#tours-content');
             Tours.tours.sort(function (u, v) {
                 return u.sequenceNum - v.sequenceNum;
-            });
-            var category = null;
-            var categoryContent;
-            for(var i = 0; i < Tours.tours.length; i++) {
-                var tour = Tours.tours[i];
-                if(tour.category !== category) {
-                    var cat = $("<div></div>", {
-                        class: "category",
-                        text: tour.category
-                    }).appendTo(toursUI);
-                    var img = $("<img></img>", {
-                        class: "collapseButton",
-                        src: "/images/collapse-down.png"
-                    }).appendTo(cat);
-                    if(i == 0) {
-                        cat.removeClass('category').addClass('categorySelected');
-                        (img[0]).src = "/images/collapse-up.png";
-                    }
-                    categoryContent = $('<div></div>', {
-                        class: "itemContainer"
-                    }).appendTo(toursUI);
-                    category = tour.category;
-                }
-                $("<div></div>", {
-                    class: "item",
-                    tour: i,
-                    text: tour.title,
-                    click: function () {
-                        removeActiveTour();
-                        $("#tours").hide('slide', {
-                        }, 'slow');
-                        $(".tour-icon").removeClass("active");
-                        Tours.isTourWindowVisible = false;
-                        var mytour = Tours.tours[this.getAttribute("tour")];
-                        activateTour(mytour, Tours.isNarrationOn);
-                        $(".touritem-selected").removeClass("touritem-selected", "slow");
-                        $(this).addClass("touritem-selected", "slow");
-                    }
-                }).appendTo(categoryContent);
-            }
-            ($)("#tours-content").accordion({
-                collapsible: true,
-                heightStyle: "content",
-                beforeActivate: function (event, ui) {
-                    if(ui.newHeader) {
-                        ui.newHeader.removeClass('category');
-                        ui.newHeader.addClass('categorySelected');
-                        var img = ($(".collapseButton", ui.newHeader)[0]);
-                        if(img) {
-                            img.src = "/images/collapse-up.png";
-                        }
-                    }
-                    if(ui.oldHeader) {
-                        ui.oldHeader.removeClass('categorySelected');
-                        ui.oldHeader.addClass('category');
-                        var img = ($(".collapseButton", ui.oldHeader)[0]);
-                        if(img) {
-                            img.src = "/images/collapse-down.png";
-                        }
-                    }
-                }
             });
         }
         Tours.initializeToursContent = initializeToursContent;
         function hideBookmark(tour) {
-            if(Tours.isBookmarksWindowExpanded && Tours.isBookmarksTextShown) {
-                if(Tours.bookmarkAnimation) {
-                    Tours.bookmarkAnimation.stop(true, true);
-                }
-                Tours.bookmarkAnimation = $("#bookmarks .slideText").hide("drop", {
-                }, 'slow', function () {
-                    Tours.bookmarkAnimation = undefined;
-                });
-                $("#bookmarks .slideHeader").text("");
-                Tours.isBookmarksTextShown = false;
-            }
+            Tours.tourCaptionForm.hideBookmark();
+        }
+        function showTourEndMessage() {
+            Tours.tourCaptionForm.showTourEndMessage();
         }
         function showBookmark(tour, bookmark) {
-            if(!Tours.isBookmarksWindowVisible) {
-                Tours.isBookmarksWindowVisible = true;
-                $("#bookmarks .slideText").text(bookmark.text);
-                $("#bookmarks").show('slide', {
-                }, 'slow');
-            }
-            $("#bookmarks .header").text(tour.title);
-            $("#bookmarks .slideHeader").text(bookmark.caption);
-            $("#bookmarks .slideFooter").text(bookmark.number + '/' + tour.bookmarks.length);
-            if(Tours.isBookmarksWindowExpanded) {
-                $("#bookmarks .slideText").text(bookmark.text);
-                if(!Tours.isBookmarksTextShown) {
-                    if(Tours.bookmarkAnimation) {
-                        Tours.bookmarkAnimation.stop(true, true);
-                    }
-                    Tours.bookmarkAnimation = $("#bookmarks .slideText").show("drop", {
-                    }, 'slow', function () {
-                        Tours.bookmarkAnimation = undefined;
-                    });
-                    Tours.isBookmarksTextShown = true;
-                }
-            } else {
-                $("#bookmarks .slideText").text(bookmark.text);
-            }
+            Tours.tourCaptionForm.showBookmark(bookmark);
         }
         function hideBookmarks() {
             $("#bookmarks").hide();
@@ -5148,7 +5790,7 @@ var CZ;
             for(var i = 0; i < content.d.length; i++) {
                 var areBookmarksValid = true;
                 var tourString = content.d[i];
-                if((typeof tourString.bookmarks == 'undefined') || (typeof tourString.audio == 'undefined') || (tourString.audio == undefined) || (tourString.audio == null) || (typeof tourString.category == 'undefined') || (typeof tourString.name == 'undefined') || (typeof tourString.sequence == 'undefined') || (tourString.bookmarks.length == 0)) {
+                if((typeof tourString.bookmarks == 'undefined') || (typeof tourString.name == 'undefined') || (typeof tourString.sequence == 'undefined') || (tourString.bookmarks.length == 0)) {
                     continue;
                 }
                 var tourBookmarks = new Array();
@@ -5158,7 +5800,7 @@ var CZ;
                         areBookmarksValid = false;
                         break;
                     }
-                    tourBookmarks.push(new TourBookmark(bmString.id, bmString.url, bmString.name, bmString.lapseTime, bmString.description));
+                    tourBookmarks.push(new TourBookmark(bmString.url, bmString.name, bmString.lapseTime, bmString.description));
                 }
                 if(!areBookmarksValid) {
                     continue;
@@ -5294,6 +5936,7 @@ var CZ;
         function goToSearchResult(resultId, elementType) {
             var element = findVCElement(CZ.Common.vc.virtualCanvas("getLayerContent"), resultId, elementType);
             var navStringElement = CZ.UrlNav.vcelementToNavString(element);
+            CZ.StartPage.hide();
             var visible = CZ.UrlNav.navStringToVisible(navStringElement, CZ.Common.vc);
             CZ.Common.controller.moveToVisible(visible);
         }
@@ -5892,8 +6535,11 @@ var CZ;
                 return sinh(x) / cosh(x);
             }
             this.u = function (s) {
-                var val = this.startScale / Math.pow(this.ro, 2) * cosh(this.r0) * tanh(this.ro * s + this.r0) - this.startScale / Math.pow(this.ro, 2) * sinh(this.r0) + this.u0;
-                return val;
+                var val = this.startScale / (this.ro * this.ro) * (this.coshR0 * tanh(this.ro * s + this.r0) - this.sinhR0) + this.u0;
+                if(this.uS < this.pathLen) {
+                    val = val * this.uSRatio;
+                }
+                return Math.min(val, this.pathLen);
             };
             this.scale = function (t) {
                 return this.startScale * cosh(this.r0) / cosh(this.ro * (t * this.S) + this.r0);
@@ -5977,6 +6623,10 @@ var CZ;
                     return this.startScale + (this.endScale - this.startScale) * s;
                 };
             }
+            this.coshR0 = cosh(this.r0);
+            this.sinhR0 = sinh(this.r0);
+            this.uS = this.u(this.S);
+            this.uSRatio = this.pathLen / this.uS;
         }
         ViewportAnimation.EllipticalZoom = EllipticalZoom;
         function animationEase(t) {
@@ -5993,6 +6643,7 @@ var CZ;
         Layout.animatingElements = {
             length: 0
         };
+        Layout.timelineHeightRate = 0.4;
         function Timeline(title, left, right, childTimelines, exhibits) {
             this.Title = title;
             this.left = left;
@@ -6014,6 +6665,9 @@ var CZ;
             if(timeline.exhibits instanceof Array) {
                 timeline.exhibits.forEach(function (exhibit) {
                     exhibit.x = CZ.Dates.getCoordinateFromDecimalYear(exhibit.time);
+                    exhibit.contentItems.forEach(function (contentItem) {
+                        CZ.Extensions.activateExtension(contentItem.mediaType);
+                    });
                 });
             }
             if(timeline.timelines instanceof Array) {
@@ -6026,7 +6680,7 @@ var CZ;
             if(timeline.Height) {
                 timeline.Height /= 100;
             } else if(!timeline.AspectRatio && !timeline.Height) {
-                timeline.Height = 0.4;
+                timeline.Height = CZ.Layout.timelineHeightRate;
             }
         }
         function GenerateAspect(timeline) {
@@ -6322,11 +6976,11 @@ var CZ;
                 height = width * 100.0 / size.width;
             }
             return {
-                width: width - 1.25 * height,
+                width: width - 2.1 * height,
                 height: height,
                 marginTop: tlHeight - height - margin,
                 marginLeft: margin,
-                bboxWidth: width + 2 * margin - 1.25 * height,
+                bboxWidth: width + 2 * margin - 2.1 * height,
                 bboxHeight: height + 2 * margin
             };
         }
@@ -7047,7 +7701,9 @@ var CZ;
                     if(this.activeAnimation.isActive) {
                         AnimationStarted(this.activeAnimation.ID);
                     }
-                    self.animationStep(self);
+                    setTimeout(function () {
+                        return self.animationStep(self);
+                    }, 0);
                 } else {
                     animationUpdated(oldId, this.activeAnimation.ID);
                 }
@@ -7074,8 +7730,21 @@ var CZ;
         } else if(!(container instanceof jQuery && container.is("div"))) {
             throw "Container parameter is invalid! It should be DIV, or ID of DIV, or jQuery instance of DIV.";
         }
+        var mouse_clicked = false;
+        var mouse_hovered = false;
+        container.mouseup(function (e) {
+            mouse_clicked = false;
+        });
+        container.mousedown(function (e) {
+            mouse_clicked = true;
+        });
         container.mousemove(function (e) {
+            mouse_hovered = true;
             mouseMove(e);
+        });
+        container.mouseleave(function (e) {
+            mouse_hovered = false;
+            mouse_clicked = false;
         });
         var that = this;
         var _container = container;
@@ -7092,6 +7761,7 @@ var CZ;
         var _width;
         var _height;
         var _canvasHeight;
+        var _markerPosition;
         var _tickSources = {
             "cosmos": new CZ.CosmosTickSource(),
             "calendar": new CZ.CalendarTickSource(),
@@ -7103,16 +7773,6 @@ var CZ;
         var marker = $("<div id='timescale_marker' class='cz-timescale-marker'></div>");
         var markerText = $("<div id='marker-text'></div>");
         var markertriangle = $("<div id='marker-triangle'></div>");
-        var leftDatePanel = $("<div class='cz-timescale-panel cz-timescale-left'></div>");
-        var leftDate = $("<p id='timescale_left_border'></p>");
-        var rightDatePanel = $("<div class='cz-timescale-panel cz-timescale-right'></div>");
-        var rightDate = $("<p id='timescale_right_border'></p>");
-        var rightDateInput = $("<input class='timescale_right_border_input' style='display: none' type='text'/>");
-        var leftDateInput = $("<input class='timescale_left_border_input' style='display: none' type='text'/>");
-        var RightInputShown = false;
-        var old_right_val;
-        var LeftInputShown = false;
-        var old_left_val;
         var canvasSize = CZ.Settings.tickLength + CZ.Settings.timescaleThickness;
         var text_size;
         var fontSize;
@@ -7169,48 +7829,25 @@ var CZ;
                 get: function () {
                     return _tickSources[_mode];
                 }
-            }
-        });
-        rightDatePanel.dblclick(function (e) {
-            RightPanInput();
-        });
-        leftDatePanel.dblclick(function (e) {
-            LeftPanInput();
-        });
-        marker.dblclick(function (e) {
-            var point = CZ.Common.getXBrowserMouseOrigin(container, e);
-            var k = (_range.max - _range.min) / _width;
-            var time = _range.max - k * (_width - point.x);
-            if(time <= _range.min + CZ.Settings.panelWidth * k) {
-                marker.css("display", "none");
-                LeftPanInput();
-            }
-            if(time >= _range.max - CZ.Settings.panelWidth * k) {
-                marker.css("display", "none");
-                RightPanInput();
+            },
+            markerPosition: {
+                configurable: false,
+                get: function () {
+                    return _markerPosition;
+                }
             }
         });
         function init() {
             _container.addClass("cz-timescale");
             _container.addClass("unselectable");
-            rightDatePanel.addClass("cz-timescale-right");
-            rightDatePanel.addClass("cz-timescale-panel");
-            leftDatePanel.addClass("cz-timescale-left");
-            leftDatePanel.addClass("cz-timescale-panel");
             marker.addClass("cz-timescale-marker");
             markertriangle.addClass("cz-timescale-marker-triangle");
             labelsDiv.addClass("cz-timescale-labels-container");
             marker[0].appendChild(markerText[0]);
             marker[0].appendChild(markertriangle[0]);
-            leftDatePanel[0].appendChild(leftDate[0]);
-            leftDatePanel[0].appendChild(leftDateInput[0]);
-            rightDatePanel[0].appendChild(rightDate[0]);
-            rightDatePanel[0].appendChild(rightDateInput[0]);
             _container[0].appendChild(labelsDiv[0]);
             _container[0].appendChild(canvas[0]);
             _container[0].appendChild(marker[0]);
-            _container[0].appendChild(leftDatePanel[0]);
-            _container[0].appendChild(rightDatePanel[0]);
             (canvas[0]).height = canvasSize;
             text_size = -1;
             strokeStyle = _container ? _container.css("color") : "Black";
@@ -7505,47 +8142,23 @@ var CZ;
             var k = (_range.max - _range.min) / _width;
             var time = _range.max - k * (_width - point.x);
             that.setTimeMarker(time);
-            that.setTimeBorders();
         }
-        this.markerPosition = -1;
-        this.setTimeMarker = function (time) {
-            if(time > CZ.Settings.maxPermitedTimeRange.right) {
-                time = CZ.Settings.maxPermitedTimeRange.right;
+        this.setTimeMarker = function (time, vcGesture) {
+            if (typeof vcGesture === "undefined") { vcGesture = false; }
+            if((!mouse_clicked) && ((!vcGesture) || ((vcGesture) && (!mouse_hovered)))) {
+                if(time > CZ.Settings.maxPermitedTimeRange.right) {
+                    time = CZ.Settings.maxPermitedTimeRange.right;
+                }
+                if(time < CZ.Settings.maxPermitedTimeRange.left) {
+                    time = CZ.Settings.maxPermitedTimeRange.left;
+                }
+                var k = (_range.max - _range.min) / _width;
+                var point = (time - _range.max) / k + _width;
+                var text = _tickSources[_mode].getMarkerLabel(_range, time);
+                _markerPosition = point;
+                markerText.text(text);
+                marker.css("left", point - marker.width() / 2);
             }
-            if(time < CZ.Settings.maxPermitedTimeRange.left) {
-                time = CZ.Settings.maxPermitedTimeRange.left;
-            }
-            var k = (_range.max - _range.min) / _width;
-            var point = (time - _range.max) / k + _width;
-            this.markerPosition = point;
-            var markerWidth = parseFloat($('#timescale_marker').css("width"));
-            $('#timescale_marker').css("left", point - markerWidth / 2);
-            var text = _tickSources[_mode].getMarkerLabel(_range, time);
-            document.getElementById('marker-text').innerHTML = text;
-        };
-        this.setTimeBorders = function () {
-            var k = (_range.max - _range.min) / _width;
-            var left_time = _range.min + CZ.Settings.panelWidth * k;
-            var right_time = _range.max - CZ.Settings.panelWidth * k;
-            if(right_time > CZ.Settings.maxPermitedTimeRange.right) {
-                right_time = CZ.Settings.maxPermitedTimeRange.right;
-                var right_pos = (right_time - _range.max) / k + _width;
-            } else {
-                var right_pos = (right_time - _range.max) / k + _width;
-            }
-            if(left_time < CZ.Settings.maxPermitedTimeRange.left) {
-                left_time = CZ.Settings.maxPermitedTimeRange.left;
-                var left_pos = (left_time - _range.max) / k + _width;
-            } else {
-                var left_pos = (left_time - _range.max) / k + _width;
-            }
-            var left_text = _tickSources[_mode].getPanelLabel(_range, left_time);
-            var right_text = _tickSources[_mode].getPanelLabel(_range, right_time);
-            document.getElementById('timescale_left_border').innerHTML = left_text;
-            document.getElementById('timescale_right_border').innerHTML = right_text;
-        };
-        this.MarkerPosition = function () {
-            return this.markerPosition;
         };
         function render() {
             setMode();
@@ -7562,79 +8175,6 @@ var CZ;
             renderBaseLine();
             renderMajorTicks();
             renderSmallTicks();
-        }
-        function LeftPanInput() {
-            if(!LeftInputShown) {
-                leftDateInput.val(document.getElementById('timescale_left_border').innerHTML);
-                old_left_val = leftDateInput.val();
-                leftDateInput.css("display", "table-cell");
-                leftDate.css("display", "none");
-                LeftInputShown = true;
-            } else {
-                var right_pan_val = document.getElementById('timescale_right_border').innerHTML;
-                var left_pan_val = leftDateInput.val();
-                var timerange;
-                timerange = _tickSources[_mode].getLeftPanelVirtualCoord(left_pan_val, right_pan_val, old_left_val, _range);
-                leftDateInput.css("display", "none");
-                leftDate.css("display", "table-cell");
-                LeftInputShown = false;
-                var vp = CZ.Common.vc.virtualCanvas("getViewport");
-                var latestVisible = vp.visible;
-                var newVis = _tickSources[_mode].getVisibleForElement({
-                    x: timerange.left,
-                    y: latestVisible.centerY - vp.height / 2,
-                    width: (timerange.right - timerange.left),
-                    height: vp.height
-                }, 1.0, vp, false);
-                CZ.Common.vc.virtualCanvas("setVisible", newVis);
-                vp = CZ.Common.vc.virtualCanvas("getViewport");
-                var lt = vp.pointScreenToVirtual(0, 0);
-                var rb = vp.pointScreenToVirtual(vp.width, vp.height);
-                var newrange = {
-                    min: lt.x,
-                    max: rb.x
-                };
-                that.update(newrange);
-                marker.css("display", "table");
-            }
-        }
-        function RightPanInput() {
-            if(!RightInputShown) {
-                rightDateInput.val(document.getElementById('timescale_right_border').innerHTML);
-                old_right_val = rightDateInput.val();
-                rightDateInput.css("display", "table-cell");
-                rightDate.css("display", "none");
-                RightInputShown = true;
-            } else {
-                var left_pan_val = document.getElementById('timescale_left_border').innerHTML;
-                var right_pan_val = rightDateInput.val();
-                var timerange;
-                timerange = _tickSources[_mode].getRightPanelVirtualCoord(left_pan_val, right_pan_val, old_right_val, _range);
-                if(timerange != null) {
-                    rightDateInput.css("display", "none");
-                    rightDate.css("display", "table-cell");
-                    RightInputShown = false;
-                    var vp = CZ.Common.vc.virtualCanvas("getViewport");
-                    var latestVisible = vp.visible;
-                    var width1 = timerange.right - timerange.left;
-                    var newVis = _tickSources[_mode].getVisibleForElement({
-                        x: timerange.left,
-                        y: latestVisible.centerY - vp.height / 2,
-                        width: width1,
-                        height: vp.height
-                    }, 1.0, vp, false);
-                    CZ.Common.vc.virtualCanvas("setVisible", newVis);
-                    vp = CZ.Common.vc.virtualCanvas("getViewport");
-                    var lt = vp.pointScreenToVirtual(0, 0);
-                    var rb = vp.pointScreenToVirtual(vp.width, vp.height);
-                    var newrange = {
-                        min: lt.x,
-                        max: rb.x
-                    };
-                    that.update(newrange);
-                    marker.css("display", "table");
-                }
-            }
         }
         this.getCoordinateFromTick = function (x) {
             var delta = _deltaRange;
@@ -7659,10 +8199,6 @@ var CZ;
         this.update = function (range) {
             _range = range;
             render();
-            var k = (_range.max - _range.min) / _width;
-            var time = _range.max - k * (_width / 2);
-            that.setTimeMarker(time);
-            this.setTimeBorders();
         };
         this.destroy = function () {
             _container[0].innerHTML = "";
@@ -7806,12 +8342,6 @@ var CZ;
         this.getMarkerLabel = function (range, time) {
             return time;
         };
-        this.getRightPanelVirtualCoord = function (leftstr, rightstr, old_right_val, range) {
-            return rightstr;
-        };
-        this.getLeftPanelVirtualCoord = function (leftstr, rightstr, old_left_val, range) {
-            return leftstr;
-        };
     }
     CZ.TickSource = TickSource;
     ;
@@ -7822,11 +8352,11 @@ var CZ;
         this.getLabel = function (x) {
             var text;
             var n = Math.max(Math.floor(Math.log(this.delta * Math.pow(10, this.beta) / this.level) * this.log10), -4);
-            text = -x / this.level;
+            text = Math.abs(x) / this.level;
             if(n < 0) {
                 text = (new Number(text)).toFixed(-n);
             }
-            text += " " + this.regime;
+            text += " " + (x < 0 ? this.regime : String(this.regime).charAt(0));
             return text;
         };
         this.getRegime = function (l, r) {
@@ -7930,81 +8460,18 @@ var CZ;
             var labelText;
             this.getRegime(range.min, range.max);
             var numOfDigits = Math.max(Math.floor(Math.log(this.delta * Math.pow(10, this.beta) / this.level) * this.log10), -4) - 1;
-            labelText = (-time / this.level).toFixed(Math.abs(numOfDigits));
-            labelText += " " + this.regime;
+            labelText = (Math.abs(time / this.level)).toFixed(Math.abs(numOfDigits));
+            var localPresent = CZ.Dates.getPresent();
+            var presentDate = CZ.Dates.getCoordinateFromYMD(localPresent.presentYear, localPresent.presentMonth, localPresent.presentDay);
+            if(time == presentDate) {
+                if(this.regime !== "ka") {
+                    labelText = 0;
+                } else {
+                    labelText = 2;
+                }
+            }
+            labelText += " " + (time < 0 ? this.regime : String(this.regime).charAt(0));
             return labelText;
-        };
-        this.getPanelLabel = function (range, time) {
-            var labelText;
-            this.getRegime(range.min, range.max);
-            var numOfDigits = Math.max(Math.floor(Math.log(this.delta * Math.pow(10, this.beta) / this.level) * this.log10), -4) - 1;
-            var labelText = (new Number(-time / this.level)).toFixed(Math.abs(numOfDigits));
-            labelText += " " + this.regime;
-            return labelText;
-        };
-        this.getRightPanelVirtualCoord = function (leftstr, rightstr, old_rightstr, range) {
-            var left_val = parseFloat(leftstr);
-            var left_reg = leftstr.split(/\W+/g);
-            var right_val = parseFloat(rightstr);
-            var right_reg = rightstr.split(/\W+/g);
-            var old_right_val = parseFloat(old_rightstr);
-            var old_right_reg = old_rightstr.split(/\W+/g);
-            var left_regime = left_reg[left_reg.length - 1];
-            var right_regime = right_reg[right_reg.length - 1];
-            var old_right_regime = old_right_reg[old_right_reg.length - 1];
-            var k = (right_val - left_val) / (old_right_val - left_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            var val = range.min + k * (range.max - range.min);
-            if(val < range.min) {
-                return null;
-            }
-            if((right_regime != "Ga") && (right_regime != "Ma") && (right_regime != "ka")) {
-                return null;
-            }
-            if(isNaN(Number(right_val))) {
-                return null;
-            }
-            return {
-                left: range.min,
-                right: val
-            };
-        };
-        this.getLeftPanelVirtualCoord = function (leftstr, rightstr, old_leftstr, range) {
-            var left_val = parseFloat(leftstr);
-            var left_reg = leftstr.split(/\W+/g);
-            var right_val = parseFloat(rightstr);
-            var right_reg = rightstr.split(/\W+/g);
-            var old_left_val = parseFloat(old_leftstr);
-            var old_left_reg = old_leftstr.split(/\W+/g);
-            var left_regime = left_reg[left_reg.length - 1];
-            var right_regime = right_reg[right_reg.length - 1];
-            var old_left_regime = old_left_reg[old_left_reg.length - 1];
-            var k = (right_val - left_val) / (right_val - old_left_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            var val = range.max - k * (range.max - range.min);
-            if(val > range.max) {
-                return null;
-            }
-            if((left_regime != "Ga") && (left_regime != "Ma") && (left_regime != "ka")) {
-                return null;
-            }
-            if(isNaN(Number(right_val))) {
-                return null;
-            }
-            return {
-                left: val,
-                right: range.max
-            };
         };
         this.getVisibleForElement = function (element, scale, viewport, use_margin) {
             var margin = 2 * (CZ.Settings.contentScaleMargin && use_margin ? CZ.Settings.contentScaleMargin : 0);
@@ -8037,7 +8504,7 @@ var CZ;
             var DMY = CZ.Dates.getYMDFromCoordinate(x);
             var year = DMY.year;
             if(year <= 0) {
-                text = -year + 1 + " BCE";
+                text = -year + " BCE";
             } else {
                 text = year + " CE";
             }
@@ -8095,7 +8562,7 @@ var CZ;
             }
             for(var i = 0; i < count + 1; i++) {
                 var tick_position = CZ.Dates.getCoordinateFromYMD(x0 + i * dx, 0, 1);
-                if(tick_position < 1 && dx > 1) {
+                if(tick_position === 0 && dx > 1) {
                     tick_position += 1;
                 }
                 if(tick_position >= this.range.min && tick_position <= this.range.max && tick_position != ticks[ticks.length - 1]) {
@@ -8161,93 +8628,6 @@ var CZ;
                 labelText += " " + "CE";
             }
             return labelText;
-        };
-        this.getPanelLabel = function (range, time) {
-            this.getRegime(range.min, range.max);
-            var labelText = parseFloat(new Number(time - this.firstYear).toFixed(2));
-            labelText += (labelText > 0 ? -0.5 : -1.5);
-            labelText = Math.round(labelText);
-            if(labelText < 0) {
-                labelText = -labelText;
-            } else if(labelText == 0) {
-                labelText = 1;
-            }
-            if(time < this.firstYear + 1) {
-                labelText += " " + "BCE";
-            } else {
-                labelText += " " + "CE";
-            }
-            return labelText;
-        };
-        this.getRightPanelVirtualCoord = function (leftstr, rightstr, old_rightstr, range) {
-            var left_val = parseFloat(leftstr);
-            var left_reg = leftstr.split(/\W+/g);
-            var right_val = parseFloat(rightstr);
-            var right_reg = rightstr.split(/\W+/g);
-            var old_right_val = parseFloat(old_rightstr);
-            var old_right_reg = old_rightstr.split(/\W+/g);
-            var left_regime = left_reg[left_reg.length - 1];
-            var right_regime = right_reg[right_reg.length - 1];
-            var old_right_regime = old_right_reg[old_right_reg.length - 1];
-            if((old_right_regime === "CE") && (left_regime === "BCE")) {
-                left_val = -left_val;
-            }
-            var k = (right_val - left_val) / (old_right_val - left_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            var val = range.min + k * (range.max - range.min);
-            if(val < range.min) {
-                return null;
-            }
-            if((right_regime != "BCE") && (right_regime != "CE")) {
-                return null;
-            }
-            if(isNaN(Number(right_val))) {
-                return null;
-            }
-            return {
-                left: range.min,
-                right: val
-            };
-        };
-        this.getLeftPanelVirtualCoord = function (leftstr, rightstr, old_leftstr, range) {
-            var left_val = parseFloat(leftstr);
-            var left_reg = leftstr.split(/\W+/g);
-            var right_val = parseFloat(rightstr);
-            var right_reg = rightstr.split(/\W+/g);
-            var old_left_val = parseFloat(old_leftstr);
-            var old_left_reg = old_leftstr.split(/\W+/g);
-            var left_regime = left_reg[left_reg.length - 1];
-            var right_regime = right_reg[right_reg.length - 1];
-            var old_left_regime = old_left_reg[old_left_reg.length - 1];
-            if((old_left_regime === "BCE") && (right_regime === "CE")) {
-                right_val = -right_val;
-            }
-            var k = (right_val - left_val) / (right_val - old_left_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            var val = range.max - k * (range.max - range.min);
-            if(val > range.max) {
-                return null;
-            }
-            if((left_regime != "BCE") && (left_regime != "CE")) {
-                return null;
-            }
-            if(isNaN(Number(right_val))) {
-                return null;
-            }
-            return {
-                left: val,
-                right: range.max
-            };
         };
         this.getVisibleForElement = function (element, scale, viewport, use_margin) {
             var margin = 2 * (CZ.Settings.contentScaleMargin && use_margin ? CZ.Settings.contentScaleMargin : 0);
@@ -8351,7 +8731,7 @@ var CZ;
             while(tempYear < this.endDate.year || (tempYear == this.endDate.year && tempMonth <= this.endDate.month)) {
                 countMonths++;
                 tempMonth++;
-                if(tempMonth == 12) {
+                if(tempMonth >= 12) {
                     tempMonth = 0;
                     tempYear++;
                 }
@@ -8505,129 +8885,9 @@ var CZ;
         };
         this.getMarkerLabel = function (range, time) {
             this.getRegime(range.min, range.max);
-            var date = CZ.Dates.getYMDFromCoordinate(time);
-            if(date.year <= 0) {
-                date.year--;
-            }
+            var date = CZ.Dates.getYMDFromCoordinate(time, true);
             var labelText = date.year + "." + (date.month + 1) + "." + date.day;
             return labelText;
-        };
-        this.getPanelLabel = function (range, time) {
-            this.getRegime(range.min, range.max);
-            var date = CZ.Dates.getYMDFromCoordinate(time);
-            if(date.year <= 0) {
-                date.year--;
-            }
-            var labelText = date.year + "." + (date.month + 1) + "." + date.day;
-            return labelText;
-        };
-        this.getRightPanelVirtualCoord = function (leftstr, rightstr, old_rightstr, range) {
-            var left_year_val = this.parseYear(leftstr);
-            var left_month_val = this.parseMonth(leftstr) - 1;
-            var left_date_val = this.parseDate(leftstr);
-            var right_year_val = this.parseYear(rightstr);
-            var right_month_val = this.parseMonth(rightstr) - 1;
-            var right_date_val = this.parseDate(rightstr);
-            var old_right_year_val = this.parseYear(old_rightstr);
-            var old_right_month_val = this.parseMonth(old_rightstr) - 1;
-            var old_right_date_val = this.parseDate(old_rightstr);
-            if(right_year_val <= 0) {
-                right_year_val++;
-            }
-            if(old_right_year_val <= 0) {
-                old_right_year_val++;
-            }
-            if(left_year_val <= 0) {
-                left_year_val++;
-            }
-            var right_val = CZ.Dates.getCoordinateFromYMD(right_year_val, right_month_val, right_date_val);
-            var left_val = CZ.Dates.getCoordinateFromYMD(left_year_val, left_month_val, left_date_val);
-            var old_right_val = CZ.Dates.getCoordinateFromYMD(old_right_year_val, old_right_month_val, old_right_date_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            if(right_val < range.min) {
-                return null;
-            }
-            if(isNaN(Number(right_val))) {
-                return null;
-            }
-            return {
-                left: range.min,
-                right: right_val
-            };
-        };
-        this.getLeftPanelVirtualCoord = function (leftstr, rightstr, old_leftstr, range) {
-            var left_year_val = this.parseYear(leftstr);
-            var left_month_val = this.parseMonth(leftstr) - 1;
-            var left_date_val = this.parseDate(leftstr);
-            var right_year_val = this.parseYear(rightstr);
-            var right_month_val = this.parseMonth(rightstr) - 1;
-            var right_date_val = this.parseDate(rightstr);
-            var old_left_year_val = this.parseYear(old_leftstr);
-            var old_left_month_val = this.parseMonth(old_leftstr) - 1;
-            var old_left_date_val = this.parseDate(old_leftstr);
-            if(right_year_val <= 0) {
-                right_year_val++;
-            }
-            if(old_left_year_val <= 0) {
-                old_left_year_val++;
-            }
-            if(left_year_val <= 0) {
-                left_year_val++;
-            }
-            var right_val = CZ.Dates.getCoordinateFromYMD(right_year_val, right_month_val, right_date_val);
-            var left_val = CZ.Dates.getCoordinateFromYMD(left_year_val, left_month_val, left_date_val);
-            var old_left_val = CZ.Dates.getCoordinateFromYMD(old_left_year_val, old_left_month_val, old_left_date_val);
-            if(range.min < this.range.min) {
-                range.min = this.range.min;
-            }
-            if(range.max > this.range.max) {
-                range.max = this.range.max;
-            }
-            if(left_val > range.max) {
-                return null;
-            }
-            if(isNaN(Number(left_val))) {
-                return null;
-            }
-            return {
-                left: left_val,
-                right: range.max
-            };
-        };
-        this.parseDate = function (str) {
-            var temp = str.split(/([_\W])/);
-            if(temp.length === 7) {
-                return (-parseFloat(temp[6]));
-            }
-            if(temp.length === 5) {
-                return (parseFloat(temp[4]));
-            }
-            return null;
-        };
-        this.parseMonth = function (str) {
-            var temp = str.split(/([_\W])/);
-            if(temp.length === 7) {
-                return (-parseFloat(temp[4]));
-            }
-            if(temp.length === 5) {
-                return (parseFloat(temp[2]));
-            }
-            return null;
-        };
-        this.parseYear = function (str) {
-            var temp = str.split(/([_\W])/);
-            if(temp.length === 7) {
-                return (-parseFloat(temp[2]));
-            }
-            if(temp.length === 5) {
-                return (parseFloat(temp[0]));
-            }
-            return null;
         };
         this.getVisibleForElement = function (element, scale, viewport, use_margin) {
             var margin = 2 * (CZ.Settings.contentScaleMargin && use_margin ? CZ.Settings.contentScaleMargin : 0);
@@ -9158,7 +9418,7 @@ var CZ;
                     switch(mode) {
                         case "year":
                             _this.editModeYear();
-                            _this.setDate(_this.coordinate, false);
+                            _this.setDate_YearMode(_this.coordinate, false);
                             break;
                         case "date":
                             _this.editModeDate();
@@ -9187,37 +9447,50 @@ var CZ;
                 var optionIntinite = $("<option value='infinite'>Infinite</option>");
                 this.modeSelector.append(optionIntinite);
             };
-            DatePicker.prototype.setDate = function (coordinate, InfinityConvertation) {
-                if (typeof InfinityConvertation === "undefined") { InfinityConvertation = false; }
+            DatePicker.prototype.setDate = function (coordinate, ZeroYearConversation) {
+                if (typeof ZeroYearConversation === "undefined") { ZeroYearConversation = false; }
                 if(!this.validateNumber(coordinate)) {
                     return false;
                 }
                 coordinate = Number(coordinate);
                 this.coordinate = coordinate;
-                var mode = this.modeSelector.find(":selected").val();
+                var regime = CZ.Dates.convertCoordinateToYear(this.coordinate).regime;
                 if(this.coordinate === this.INFINITY_VALUE) {
-                    if(InfinityConvertation) {
-                        this.regimeSelector.find(":selected").attr("selected", "false");
+                    this.modeSelector.find(":selected").attr("selected", "false");
+                    this.modeSelector.find("option").each(function () {
+                        if($(this).val() === "infinite") {
+                            $(this).attr("selected", "selected");
+                            return;
+                        }
+                    });
+                    this.editModeInfinite();
+                    return;
+                }
+                switch(regime.toLowerCase()) {
+                    case "ga":
+                    case "ma":
+                    case "ka":
+                        this.modeSelector.find(":selected").attr("selected", "false");
                         this.modeSelector.find("option").each(function () {
-                            if($(this).val() === "infinite") {
+                            if($(this).val() === "year") {
                                 $(this).attr("selected", "selected");
                                 return;
                             }
                         });
-                        this.editModeInfinite();
-                    } else {
-                        var localPresent = CZ.Dates.getPresent();
-                        coordinate = CZ.Dates.getCoordinateFromYMD(localPresent.presentYear, localPresent.presentMonth, localPresent.presentDay);
-                    }
-                }
-                switch(mode) {
-                    case "year":
-                        this.setDate_YearMode(coordinate);
+                        this.editModeYear();
+                        this.setDate_YearMode(coordinate, ZeroYearConversation);
                         break;
-                    case "date":
+                    case "bce":
+                    case "ce":
+                        this.modeSelector.find(":selected").attr("selected", "false");
+                        this.modeSelector.find("option").each(function () {
+                            if($(this).val() === "date") {
+                                $(this).attr("selected", "selected");
+                                return;
+                            }
+                        });
+                        this.editModeDate();
                         this.setDate_DateMode(coordinate);
-                        break;
-                    case "infinite":
                         break;
                 }
             };
@@ -9243,10 +9516,14 @@ var CZ;
                 this.yearSelector.focus(function (event) {
                     _this.errorMsg.text("");
                 });
+                this.regimeSelector.change(function (event) {
+                    _this.checkAndRemoveNonIntegerPart();
+                });
                 this.yearSelector.blur(function (event) {
                     if(!_this.validateNumber(_this.yearSelector.val())) {
                         _this.errorMsg.text(_this.WRONG_YEAR_INPUT);
                     }
+                    _this.checkAndRemoveNonIntegerPart();
                 });
                 var optionGa = $("<option value='ga'>Ga</option>");
                 var optionMa = $("<option value='ma'>Ma</option>");
@@ -9270,6 +9547,7 @@ var CZ;
                     if(!_this.validateNumber(_this.yearSelector.val())) {
                         _this.errorMsg.text(_this.WRONG_YEAR_INPUT);
                     }
+                    _this.checkAndRemoveNonIntegerPart();
                 });
                 var self = this;
                 this.monthSelector.change(function (event) {
@@ -9292,8 +9570,18 @@ var CZ;
             DatePicker.prototype.editModeInfinite = function () {
                 this.dateContainer.empty();
             };
-            DatePicker.prototype.setDate_YearMode = function (coordinate) {
+            DatePicker.prototype.checkAndRemoveNonIntegerPart = function () {
+                var regime = this.regimeSelector.find(":selected").val().toLowerCase();
+                var mode = this.modeSelector.find(":selected").val().toLowerCase();
+                if(regime === 'ce' || regime === 'bce' || mode === 'date') {
+                    this.yearSelector.val(parseFloat(this.yearSelector.val()).toFixed());
+                }
+            };
+            DatePicker.prototype.setDate_YearMode = function (coordinate, ZeroYearConversation) {
                 var date = CZ.Dates.convertCoordinateToYear(coordinate);
+                if((date.regime.toLowerCase() == "bce") && (ZeroYearConversation)) {
+                    date.year--;
+                }
                 this.yearSelector.val(date.year);
                 this.regimeSelector.find(":selected").attr("selected", "false");
                 this.regimeSelector.find("option").each(function () {
@@ -9364,6 +9652,14 @@ var CZ;
                 if(CZ.Layout.animatingElements.length != 0) {
                     return;
                 }
+                CZ.Authoring.showMessageWindow("Click and drag to set the approximate length of the timeline.", "Create Timeline");
+                var prevIsActive = CZ.Authoring.isActive;
+                var prevMode = CZ.Authoring.mode;
+                var messageForm = CZ.HomePageViewModel.getFormById("#message-window");
+                messageForm.closeButton.click(function (event) {
+                    CZ.Authoring.isActive = prevIsActive;
+                    CZ.Authoring.mode = prevMode;
+                });
                 CZ.Authoring.isActive = true;
                 CZ.Authoring.mode = "createTimeline";
             }
@@ -9380,6 +9676,14 @@ var CZ;
                 if(CZ.Layout.animatingElements.length != 0) {
                     return;
                 }
+                CZ.Authoring.showMessageWindow("Click inside a timeline to set the approximate date of the exhibit.", "Create Exhibit");
+                var prevIsActive = CZ.Authoring.isActive;
+                var prevMode = CZ.Authoring.mode;
+                var messageForm = CZ.HomePageViewModel.getFormById("#message-window");
+                messageForm.closeButton.click(function (event) {
+                    CZ.Authoring.isActive = prevIsActive;
+                    CZ.Authoring.mode = prevMode;
+                });
                 CZ.Authoring.isActive = true;
                 CZ.Authoring.mode = "createExhibit";
             }
@@ -9546,6 +9850,225 @@ var CZ;
 })(CZ || (CZ = {}));
 var CZ;
 (function (CZ) {
+    (function (Gestures) {
+        function PanGesture(xOffset, yOffset, src) {
+            this.Type = "Pan";
+            this.Source = src;
+            this.xOffset = xOffset;
+            this.yOffset = yOffset;
+        }
+        function ZoomGesture(xOrigin, yOrigin, scaleFactor, src) {
+            this.Type = "Zoom";
+            this.Source = src;
+            this.xOrigin = xOrigin;
+            this.yOrigin = yOrigin;
+            this.scaleFactor = scaleFactor;
+        }
+        function PinGesture(src) {
+            this.Type = "Pin";
+            this.Source = src;
+        }
+        function createPanSubject(vc) {
+            var _doc = ($(document));
+            var mouseDown = vc.toObservable("mousedown");
+            var mouseMove = vc.toObservable("mousemove");
+            var mouseUp = _doc.toObservable("mouseup");
+            var mouseMoves = mouseMove.Skip(1).Zip(mouseMove, function (left, right) {
+                return new PanGesture(left.clientX - right.clientX, left.clientY - right.clientY, "Mouse");
+            });
+            var stopPanning = mouseUp;
+            var mouseDrags = mouseDown.SelectMany(function (md) {
+                return mouseMoves.TakeUntil(stopPanning);
+            });
+            return mouseDrags;
+        }
+        function createPinSubject(vc) {
+            var mouseDown = vc.toObservable("mousedown");
+            return mouseDown.Select(function (md) {
+                return new PinGesture("Mouse");
+            });
+        }
+        function createZoomSubject(vc) {
+            vc.mousewheel(function (event, delta, deltaX, deltaY) {
+                var xevent = ($).Event("xbrowserwheel");
+                xevent.delta = delta;
+                xevent.origin = CZ.Common.getXBrowserMouseOrigin(vc, event);
+                vc.trigger(xevent);
+            });
+            var mouseWheel = vc.toObservable("xbrowserwheel");
+            var mouseWheels = mouseWheel.Zip(mouseWheel, function (arg) {
+                return new ZoomGesture(arg.origin.x, arg.origin.y, arg.delta > 0 ? 1 / CZ.Settings.zoomLevelFactor : 1 * CZ.Settings.zoomLevelFactor, "Mouse");
+            });
+            var mousedblclick = vc.toObservable("dblclick");
+            var mousedblclicks = mousedblclick.Zip(mousedblclick, function (event) {
+                var origin = CZ.Common.getXBrowserMouseOrigin(vc, event);
+                return new ZoomGesture(origin.x, origin.y, 1.0 / CZ.Settings.zoomLevelFactor, "Mouse");
+            });
+            return mouseWheels;
+        }
+        function createTouchPanSubject(vc) {
+            var _doc = ($)(document);
+            var touchStart = vc.toObservable("touchstart");
+            var touchMove = vc.toObservable("touchmove");
+            var touchEnd = _doc.toObservable("touchend");
+            var touchCancel = _doc.toObservable("touchcancel");
+            var gestures = touchStart.SelectMany(function (o) {
+                return touchMove.TakeUntil(touchEnd.Merge(touchCancel)).Skip(1).Zip(touchMove, function (left, right) {
+                    return {
+                        "left": left.originalEvent,
+                        "right": right.originalEvent
+                    };
+                }).Where(function (g) {
+                    return g.left.scale === g.right.scale;
+                }).Select(function (g) {
+                    return new PanGesture(g.left.pageX - g.right.pageX, g.left.pageY - g.right.pageY, "Touch");
+                });
+            });
+            return gestures;
+        }
+        function createTouchPinSubject(vc) {
+            var touchStart = vc.toObservable("touchstart");
+            return touchStart.Select(function (ts) {
+                return new PinGesture("Touch");
+            });
+        }
+        function createTouchZoomSubject(vc) {
+            var _doc = ($)(document);
+            var gestureStart = vc.toObservable("gesturestart");
+            var gestureChange = vc.toObservable("gesturechange");
+            var gestureEnd = _doc.toObservable("gestureend");
+            var touchCancel = _doc.toObservable("touchcancel");
+            var gestures = gestureStart.SelectMany(function (o) {
+                return gestureChange.TakeUntil(gestureEnd.Merge(touchCancel)).Skip(1).Zip(gestureChange, function (left, right) {
+                    return {
+                        "left": left.originalEvent,
+                        "right": right.originalEvent
+                    };
+                }).Where(function (g) {
+                    return g.left.scale !== g.right.scale && g.right.scale !== 0;
+                }).Select(function (g) {
+                    var delta = g.left.scale / g.right.scale;
+                    return new ZoomGesture(o.originalEvent.layerX, o.originalEvent.layerY, 1 / delta, "Touch");
+                });
+            });
+            return gestures;
+        }
+        function createTouchPanSubjectWin8(vc) {
+            var gestureStart = vc.toObservable("MSGestureStart");
+            var gestureChange = vc.toObservable("MSGestureChange");
+            var gestureEnd = vc.toObservable("MSGestureEnd");
+            var gestures = gestureStart.SelectMany(function (o) {
+                return gestureChange.TakeUntil(gestureEnd).Skip(1).Zip(gestureChange, function (left, right) {
+                    return {
+                        "left": left.originalEvent,
+                        "right": right.originalEvent
+                    };
+                }).Where(function (g) {
+                    return g.left.scale === g.right.scale && g.left.detail != g.left.MSGESTURE_FLAG_INERTIA && g.right.detail != g.right.MSGESTURE_FLAG_INERTIA;
+                }).Select(function (g) {
+                    return new PanGesture(g.left.offsetX - g.right.offsetX, g.left.offsetY - g.right.offsetY, "Touch");
+                });
+            });
+            return gestures;
+        }
+        function createTouchPinSubjectWin8(vc) {
+            var pointerDown = vc.toObservable("MSPointerDown");
+            return pointerDown.Select(function (gt) {
+                return new PinGesture("Touch");
+            });
+        }
+        function createTouchZoomSubjectWin8(vc) {
+            var gestureStart = vc.toObservable("MSGestureStart");
+            var gestureChange = vc.toObservable("MSGestureChange");
+            var gestureEnd = vc.toObservable("MSGestureEnd");
+            var gestures = gestureStart.SelectMany(function (o) {
+                return gestureChange.TakeUntil(gestureEnd).Where(function (g) {
+                    return g.originalEvent.scale !== 0 && g.originalEvent.detail != g.originalEvent.MSGESTURE_FLAG_INERTIA;
+                }).Select(function (g) {
+                    return new ZoomGesture(o.originalEvent.offsetX, o.originalEvent.offsetY, 1 / g.originalEvent.scale, "Touch");
+                });
+            });
+            return gestures;
+        }
+        var gesturesDictionary = [];
+        function addMSGestureSource(dom) {
+            gesturesDictionary.forEach(function (child) {
+                if(child === dom) {
+                    return;
+                }
+            });
+            gesturesDictionary.push(dom);
+            dom.addEventListener("MSPointerDown", function (e) {
+                if(dom.gesture === undefined) {
+                    var newGesture = new MSGesture();
+                    newGesture.target = dom;
+                    dom.gesture = newGesture;
+                }
+                dom.gesture.addPointer(e.pointerId);
+            }, false);
+        }
+        ;
+        function getGesturesStream(source) {
+            var panController;
+            var zoomController;
+            var pinController;
+            if(window.navigator.msPointerEnabled && (window).MSGesture) {
+                addMSGestureSource(source[0]);
+                panController = createTouchPanSubjectWin8(source);
+                var zoomControllerTouch = createTouchZoomSubjectWin8(source);
+                var zoomControllerMouse = createZoomSubject(source);
+                zoomController = zoomControllerTouch.Merge(zoomControllerMouse);
+                pinController = createTouchPinSubjectWin8(source);
+            } else if('ontouchstart' in document.documentElement) {
+                panController = createTouchPanSubject(source);
+                zoomController = createTouchZoomSubject(source);
+                pinController = createTouchPinSubject(source);
+            } else {
+                panController = createPanSubject(source);
+                zoomController = createZoomSubject(source);
+                pinController = createPinSubject(source);
+            }
+            return pinController.Merge(panController.Merge(zoomController));
+        }
+        Gestures.getGesturesStream = getGesturesStream;
+        function getPanPinGesturesStream(source) {
+            var panController;
+            var pinController;
+            if(window.navigator.msPointerEnabled && (window).MSGesture) {
+                addMSGestureSource(source[0]);
+                panController = createTouchPanSubjectWin8(source);
+                var zoomControllerTouch = createTouchZoomSubjectWin8(source);
+                var zoomControllerMouse = createZoomSubject(source);
+                pinController = createTouchPinSubjectWin8(source);
+            } else if('ontouchstart' in document.documentElement) {
+                panController = createTouchPanSubject(source);
+                pinController = createTouchPinSubject(source);
+            } else {
+                panController = createPanSubject(source);
+                pinController = createPinSubject(source);
+            }
+            return pinController.Merge(panController.Select(function (el) {
+                el.yOffset = 0;
+                return el;
+            }));
+        }
+        Gestures.getPanPinGesturesStream = getPanPinGesturesStream;
+        function applyAxisBehavior(gestureSequence) {
+            return gestureSequence.Where(function (el) {
+                return el.Type != "Zoom";
+            }).Select(function (el) {
+                if(el.Type == "Pan") {
+                    el.yOffset = 0;
+                }
+                return el;
+            });
+        }
+        Gestures.applyAxisBehavior = applyAxisBehavior;
+    })(CZ.Gestures || (CZ.Gestures = {}));
+    var Gestures = CZ.Gestures;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
     (function (UI) {
         var LineChart = (function () {
             function LineChart(container) {
@@ -9627,7 +10150,11 @@ var CZ;
                 }
                 var ticks = [];
                 for(var i = imin; i <= imax; i++) {
-                    ticks.push(i * k * h10);
+                    var newTick = i * k * h10;
+                    if(h < 0) {
+                        newTick = newTick.toPrecision(-h);
+                    }
+                    ticks.push(newTick);
                 }
                 var result = {
                 };
@@ -9635,10 +10162,6 @@ var CZ;
                 result.h = h;
                 result.h10 = h10;
                 return result;
-            };
-            LineChart.prototype.generateAxisParameters = function (ymin, ymax, labelCount) {
-                var ticks = this.calculateTicks(ymin, ymax, labelCount);
-                return null;
             };
             LineChart.prototype.clear = function (screenLeft, screenRight) {
                 this.context.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -9651,27 +10174,13 @@ var CZ;
                 $("#leftLegend").css("max-width", maxLegendWidth + "px");
                 $("#timeSeriesChartHeader").text("TimeSeries Chart");
             };
-            LineChart.prototype.drawDataSet = function (dataSet, screenLeft, screenRight, verticalPadding, plotLeft, plotRight) {
+            LineChart.prototype.drawDataSet = function (dataSet, screenLeft, screenRight, verticalPadding, plotLeft, plotRight, plotTop, plotBottom) {
                 var that = this;
-                var plotBottom = Number.MAX_VALUE;
-                var plotTop = Number.MIN_VALUE;
                 dataSet.series.forEach(function (seria) {
-                    if(seria.appearanceSettings && seria.appearanceSettings.yMin && seria.appearanceSettings.yMin < plotBottom) {
-                        plotBottom = seria.appearanceSettings.yMin;
-                    }
-                    if(seria.appearanceSettings && seria.appearanceSettings.yMax && seria.appearanceSettings.yMax > plotTop) {
-                        plotTop = seria.appearanceSettings.yMax;
-                    }
                     if(seria.appearanceSettings && seria.appearanceSettings.thickness && seria.appearanceSettings.thickness > verticalPadding) {
                         verticalPadding = seria.appearanceSettings.thickness;
                     }
                 });
-                if((plotTop - plotBottom) === 0) {
-                    var absY = Math.max(0.1, Math.abs(plotBottom));
-                    var offsetConstant = 0.01;
-                    plotTop += absY * offsetConstant;
-                    plotBottom -= absY * offsetConstant;
-                }
                 var screenHeight = this.canvas.height - 2 * verticalPadding;
                 var dataToScreenX = function (x) {
                     return (x - plotLeft) / (plotRight - plotLeft) * (screenRight - screenLeft) + screenLeft;
@@ -9805,7 +10314,9 @@ var CZ;
                 var d = y > ymax ? 1 : 0;
                 return a << 3 | b << 2 | c << 1 | d;
             };
-            LineChart.prototype.drawAxis = function (tickOrigin, secondScreenBorder, ymin, ymax, appearence) {
+            LineChart.prototype.generateAxisParameters = function (tickOrigin, secondScreenBorder, ymin, ymax, appearence) {
+                var that = this;
+                var ticksForDraw = [];
                 var verticalPadding = appearence.verticalPadding ? appearence.verticalPadding : 0;
                 var screenHeight = this.canvas.height - 2 * verticalPadding;
                 var dataToScreenY = function (y) {
@@ -9829,23 +10340,57 @@ var CZ;
                 }
                 ctx.textAlign = appearence.axisLocation;
                 ticks.forEach(function (tick) {
+                    var tickForDraw = {
+                    };
+                    tickForDraw.tick = tick;
                     var y = dataToScreenY(tick);
-                    ctx.strokeStyle = appearence.stroke;
-                    ctx.beginPath();
-                    ctx.moveTo(tickOrigin, y);
-                    ctx.lineTo(tickOrigin + ticklength, y);
-                    ctx.stroke();
-                    ctx.fillText(tick, tickOrigin + ticklength + textOffset, y);
-                    ctx.strokeStyle = 'lightgray';
+                    tickForDraw.y = y;
+                    tickForDraw.xLineStart = tickOrigin;
+                    tickForDraw.xLineEnd = tickOrigin + ticklength;
+                    tickForDraw.xText = tickOrigin + ticklength + textOffset;
                     var textWidth = ctx.measureText(tick).width;
                     if(appearence.axisLocation == "right") {
                         textWidth = -textWidth;
                     }
                     var offset = ticklength + textWidth + 2 * textOffset;
+                    tickForDraw.isGridLineVisible = offset > 0 && (tickOrigin + offset) <= secondScreenBorder || offset < 0 && (tickOrigin + offset) >= secondScreenBorder;
+                    tickForDraw.xGridLineStart = tickOrigin + offset;
+                    tickForDraw.xGridLineEnd = secondScreenBorder;
+                    ticksForDraw.push(tickForDraw);
+                });
+                return ticksForDraw;
+            };
+            LineChart.prototype.drawAxis = function (ticksForDraw, appearence) {
+                var that = this;
+                var ctx = this.context;
+                ctx.font = appearence.font;
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = appearence.stroke;
+                ctx.fillStyle = appearence.stroke;
+                ctx.lineWidth = appearence.majorTickThickness;
+                ctx.textAlign = appearence.axisLocation;
+                ticksForDraw.forEach(function (tick) {
+                    ctx.strokeStyle = appearence.stroke;
                     ctx.beginPath();
-                    ctx.moveTo(tickOrigin + offset, y);
-                    ctx.lineTo(secondScreenBorder, y);
+                    ctx.moveTo(tick.xLineStart, tick.y);
+                    ctx.lineTo(tick.xLineEnd, tick.y);
                     ctx.stroke();
+                    var minTextOffset = 8;
+                    ctx.fillText(tick.tick, tick.xText, Math.max(minTextOffset, Math.min(that.canvas.height - minTextOffset, tick.y)));
+                });
+            };
+            LineChart.prototype.drawHorizontalGridLines = function (ticksForDraw, appearence) {
+                var that = this;
+                var ctx = this.context;
+                ctx.strokeStyle = 'lightgray';
+                ctx.lineWidth = appearence.majorTickThickness;
+                ticksForDraw.forEach(function (tick) {
+                    if(tick.isGridLineVisible) {
+                        ctx.beginPath();
+                        ctx.moveTo(tick.xGridLineStart, tick.y);
+                        ctx.lineTo(tick.xGridLineEnd, tick.y);
+                        ctx.stroke();
+                    }
                 });
             };
             LineChart.prototype.drawVerticalGridLines = function (screenLeft, screenRight, plotLeft, plotRight) {
@@ -9867,14 +10412,15 @@ var CZ;
                 this.canvas.width = $("#timeSeries").width();
             };
             LineChart.prototype.clearLegend = function (location) {
+                var legendCnt = location === "left" ? $("#leftLegend") : $("#rightLegend");
                 var legend = location === "left" ? $("#leftLegendList") : $("#rightLegendList");
                 legend.empty();
-                legend.hide();
+                legendCnt.hide();
             };
             LineChart.prototype.addLegendRecord = function (location, stroke, description) {
                 var legend = location === "left" ? $("#leftLegendList") : $("#rightLegendList");
                 var legendCont = location === "left" ? $("#leftLegend") : $("#rightLegend");
-                legend.show();
+                legendCont.show();
                 var cont = $('<li></li>');
                 var strokeIndicatior = $('<div></div>').addClass("tsc-legend-indicator");
                 strokeIndicatior.css("background-color", stroke);
@@ -9884,6 +10430,12 @@ var CZ;
                 strokeIndicatior.appendTo(cont);
                 descriptionDiv.appendTo(cont);
                 cont.height(24).appendTo(legend);
+            };
+            LineChart.prototype.checkLegendVisibility = function (screenWidth) {
+                var baseIndicatorSize = 24;
+                var horOffset = 30;
+                var topOffset = 10;
+                return screenWidth >= baseIndicatorSize + horOffset && this.canvas.height >= baseIndicatorSize + topOffset;
             };
             return LineChart;
         })();
@@ -9982,18 +10534,6 @@ var CZ;
             }, 'slow');
         }
         Common.showFooter = showFooter;
-        function startExploring() {
-            if($('#welcomeScreenCheckbox').is(':checked')) {
-                setCookie("welcomeScreenDisallowed", "1", 365);
-            }
-            hideWelcomeScreen();
-        }
-        Common.startExploring = startExploring;
-        function hideWelcomeScreen() {
-            $('#welcomeScreen').remove();
-            $('#welcomeScreenBack').css("display", "none");
-        }
-        Common.hideWelcomeScreen = hideWelcomeScreen;
         Common.animationTooltipRunning = null;
         Common.tooltipMode = "default";
         function stopAnimationTooltip() {
@@ -10027,8 +10567,7 @@ var CZ;
         }
         Common.setVisible = setVisible;
         function updateMarker() {
-            Common.axis.setTimeMarker(Common.vc.virtualCanvas("getCursorPosition"));
-            Common.axis.setTimeBorders();
+            Common.axis.setTimeMarker(Common.vc.virtualCanvas("getCursorPosition"), true);
         }
         Common.updateMarker = updateMarker;
         function loadDataUrl() {
@@ -10219,196 +10758,15 @@ var CZ;
 })(CZ || (CZ = {}));
 var CZ;
 (function (CZ) {
-    (function (Gestures) {
-        function PanGesture(xOffset, yOffset, src) {
-            this.Type = "Pan";
-            this.Source = src;
-            this.xOffset = xOffset;
-            this.yOffset = yOffset;
-        }
-        function ZoomGesture(xOrigin, yOrigin, scaleFactor, src) {
-            this.Type = "Zoom";
-            this.Source = src;
-            this.xOrigin = xOrigin;
-            this.yOrigin = yOrigin;
-            this.scaleFactor = scaleFactor;
-        }
-        function PinGesture(src) {
-            this.Type = "Pin";
-            this.Source = src;
-        }
-        function createPanSubject(vc) {
-            var _doc = ($(document));
-            var mouseDown = vc.toObservable("mousedown");
-            var mouseMove = vc.toObservable("mousemove");
-            var mouseUp = _doc.toObservable("mouseup");
-            var mouseMoves = mouseMove.Skip(1).Zip(mouseMove, function (left, right) {
-                return new PanGesture(left.clientX - right.clientX, left.clientY - right.clientY, "Mouse");
-            });
-            var stopPanning = mouseUp;
-            var mouseDrags = mouseDown.SelectMany(function (md) {
-                return mouseMoves.TakeUntil(stopPanning);
-            });
-            return mouseDrags;
-        }
-        function createPinSubject(vc) {
-            var mouseDown = vc.toObservable("mousedown");
-            return mouseDown.Select(function (md) {
-                return new PinGesture("Mouse");
-            });
-        }
-        function createZoomSubject(vc) {
-            vc.mousewheel(function (objEvent, intDelta) {
-                var event = ($).Event("xbrowserwheel");
-                event.delta = intDelta;
-                event.origin = CZ.Common.getXBrowserMouseOrigin(vc, objEvent);
-                vc.trigger(event);
-            });
-            var mouseWheel = vc.toObservable("xbrowserwheel");
-            var mouseWheels = mouseWheel.Zip(mouseWheel, function (arg) {
-                return new ZoomGesture(arg.origin.x, arg.origin.y, arg.delta > 0 ? 1 / CZ.Settings.zoomLevelFactor : 1 * CZ.Settings.zoomLevelFactor, "Mouse");
-            });
-            var mousedblclick = vc.toObservable("dblclick");
-            var mousedblclicks = mousedblclick.Zip(mousedblclick, function (event) {
-                var origin = CZ.Common.getXBrowserMouseOrigin(vc, event);
-                return new ZoomGesture(origin.x, origin.y, 1.0 / CZ.Settings.zoomLevelFactor, "Mouse");
-            });
-            return mouseWheels;
-        }
-        function createTouchPanSubject(vc) {
-            var _doc = ($)(document);
-            var touchStart = vc.toObservable("touchstart");
-            var touchMove = vc.toObservable("touchmove");
-            var touchEnd = _doc.toObservable("touchend");
-            var touchCancel = _doc.toObservable("touchcancel");
-            var gestures = touchStart.SelectMany(function (o) {
-                return touchMove.TakeUntil(touchEnd.Merge(touchCancel)).Skip(1).Zip(touchMove, function (left, right) {
-                    return {
-                        "left": left.originalEvent,
-                        "right": right.originalEvent
-                    };
-                }).Where(function (g) {
-                    return g.left.scale === g.right.scale;
-                }).Select(function (g) {
-                    return new PanGesture(g.left.pageX - g.right.pageX, g.left.pageY - g.right.pageY, "Touch");
-                });
-            });
-            return gestures;
-        }
-        function createTouchPinSubject(vc) {
-            var touchStart = vc.toObservable("touchstart");
-            return touchStart.Select(function (ts) {
-                return new PinGesture("Touch");
-            });
-        }
-        function createTouchZoomSubject(vc) {
-            var _doc = ($)(document);
-            var gestureStart = vc.toObservable("gesturestart");
-            var gestureChange = vc.toObservable("gesturechange");
-            var gestureEnd = _doc.toObservable("gestureend");
-            var touchCancel = _doc.toObservable("touchcancel");
-            var gestures = gestureStart.SelectMany(function (o) {
-                return gestureChange.TakeUntil(gestureEnd.Merge(touchCancel)).Skip(1).Zip(gestureChange, function (left, right) {
-                    return {
-                        "left": left.originalEvent,
-                        "right": right.originalEvent
-                    };
-                }).Where(function (g) {
-                    return g.left.scale !== g.right.scale && g.right.scale !== 0;
-                }).Select(function (g) {
-                    var delta = g.left.scale / g.right.scale;
-                    return new ZoomGesture(o.originalEvent.layerX, o.originalEvent.layerY, 1 / delta, "Touch");
-                });
-            });
-            return gestures;
-        }
-        function createTouchPanSubjectWin8(vc) {
-            var gestureStart = vc.toObservable("MSGestureStart");
-            var gestureChange = vc.toObservable("MSGestureChange");
-            var gestureEnd = vc.toObservable("MSGestureEnd");
-            var gestures = gestureStart.SelectMany(function (o) {
-                return gestureChange.TakeUntil(gestureEnd).Skip(1).Zip(gestureChange, function (left, right) {
-                    return {
-                        "left": left.originalEvent,
-                        "right": right.originalEvent
-                    };
-                }).Where(function (g) {
-                    return g.left.scale === g.right.scale && g.left.detail != g.left.MSGESTURE_FLAG_INERTIA && g.right.detail != g.right.MSGESTURE_FLAG_INERTIA;
-                }).Select(function (g) {
-                    return new PanGesture(g.left.offsetX - g.right.offsetX, g.left.offsetY - g.right.offsetY, "Touch");
-                });
-            });
-            return gestures;
-        }
-        function createTouchPinSubjectWin8(vc) {
-            var pointerDown = vc.toObservable("MSPointerDown");
-            return pointerDown.Select(function (gt) {
-                return new PinGesture("Touch");
-            });
-        }
-        function createTouchZoomSubjectWin8(vc) {
-            var gestureStart = vc.toObservable("MSGestureStart");
-            var gestureChange = vc.toObservable("MSGestureChange");
-            var gestureEnd = vc.toObservable("MSGestureEnd");
-            var gestures = gestureStart.SelectMany(function (o) {
-                return gestureChange.TakeUntil(gestureEnd).Where(function (g) {
-                    return g.originalEvent.scale !== 0 && g.originalEvent.detail != g.originalEvent.MSGESTURE_FLAG_INERTIA;
-                }).Select(function (g) {
-                    return new ZoomGesture(o.originalEvent.offsetX, o.originalEvent.offsetY, 1 / g.originalEvent.scale, "Touch");
-                });
-            });
-            return gestures;
-        }
-        var vcGestureObject;
-        function addPointerToGesture(evt) {
-            vcGestureObject.addPointer(evt.pointerId);
-        }
-        function getGesturesStream(source) {
-            var panController;
-            var zoomController;
-            var pinController;
-            if(window.navigator.msPointerEnabled && (window).MSGesture) {
-                vcGestureObject = new MSGesture();
-                vcGestureObject.target = CZ.Common.vc[0];
-                CZ.Common.vc[0].addEventListener("MSPointerMove", addPointerToGesture, false);
-                panController = createTouchPanSubjectWin8(source);
-                var zoomControllerTouch = createTouchZoomSubjectWin8(source);
-                var zoomControllerMouse = createZoomSubject(source);
-                zoomController = zoomControllerTouch.Merge(zoomControllerMouse);
-                pinController = createTouchPinSubjectWin8(source);
-            } else if('ontouchstart' in document.documentElement) {
-                panController = createTouchPanSubject(source);
-                zoomController = createTouchZoomSubject(source);
-                pinController = createTouchPinSubject(source);
-            } else {
-                panController = createPanSubject(source);
-                zoomController = createZoomSubject(source);
-                pinController = createPinSubject(source);
-            }
-            return pinController.Merge(panController.Merge(zoomController));
-        }
-        Gestures.getGesturesStream = getGesturesStream;
-        function applyAxisBehavior(gestureSequence) {
-            return gestureSequence.Where(function (el) {
-                return el.Type != "Zoom";
-            }).Select(function (el) {
-                if(el.Type == "Pan") {
-                    el.yOffset = 0;
-                }
-                return el;
-            });
-        }
-        Gestures.applyAxisBehavior = applyAxisBehavior;
-    })(CZ.Gestures || (CZ.Gestures = {}));
-    var Gestures = CZ.Gestures;
-})(CZ || (CZ = {}));
-var CZ;
-(function (CZ) {
     (function (UILoader) {
         function loadHtml(selector, filepath) {
             var container = $(selector);
             var promise = new $.Deferred();
-            if(!selector || !filepath || !container.length) {
+            if(!filepath) {
+                promise.resolve(container);
+                return promise;
+            }
+            if(!selector || !container.length) {
                 throw "Unable to load " + filepath + " " + selector;
             }
             container.load(filepath, function () {
@@ -10432,10 +10790,623 @@ var CZ;
 })(CZ || (CZ = {}));
 var CZ;
 (function (CZ) {
+    (function (Media) {
+        var BingMediaPicker = (function () {
+            function BingMediaPicker(container, context) {
+                this.container = container;
+                this.contentItem = context;
+                this.editContentItemForm = CZ.HomePageViewModel.getFormById("#auth-edit-contentitem-form");
+                this.searchTextbox = this.container.find(".cz-bing-search-input");
+                this.mediaTypeRadioButtons = this.container.find(":radio");
+                this.progressBar = this.container.find(".cz-form-progress-bar");
+                this.searchResultsBox = this.container.find(".cz-bing-search-results");
+                this.searchButton = this.container.find(".cz-bing-search-button");
+                this.initialize();
+            }
+            BingMediaPicker.setup = function setup(context) {
+                var mediaPickerContainer = CZ.Media.mediaPickersViews["bing"];
+                var mediaPicker = new BingMediaPicker(mediaPickerContainer, context);
+                var formContainer = $(".cz-form-bing-mediapicker");
+                if(formContainer.length === 0) {
+                    formContainer = $("#mediapicker-form").clone().removeAttr("id").addClass("cz-form-bing-mediapicker").appendTo($("#content"));
+                }
+                var form = new CZ.UI.FormMediaPicker(formContainer, mediaPickerContainer, "Import from Bing", {
+                    activationSource: $(),
+                    navButton: ".cz-form-nav",
+                    closeButton: ".cz-form-close-btn > .cz-form-btn",
+                    titleTextblock: ".cz-form-title",
+                    contentContainer: ".cz-form-content"
+                });
+                $(form).on("showcompleted", function (event) {
+                    mediaPicker.searchTextbox.focus();
+                });
+                $(mediaPicker).on("resultclick", function (event) {
+                    form.close();
+                });
+                var onWindowResize = function () {
+                    return mediaPicker.onWindowResize();
+                };
+                $(window).on("resize", onWindowResize);
+                $(form).on("closecompleted", function (event) {
+                    $(window).off("resize", onWindowResize);
+                });
+                form.show();
+            };
+            BingMediaPicker.prototype.initialize = function () {
+                var _this = this;
+                this.progressBar.css("opacity", 0);
+                this.searchTextbox.off();
+                this.searchButton.off();
+                $(this).off();
+                this.searchTextbox.keypress(function (event) {
+                    var code = event.which || event.keyCode;
+                    if(code === 13) {
+                        event.preventDefault();
+                        _this.search();
+                    }
+                });
+                this.searchButton.click(function (event) {
+                    _this.search();
+                });
+                $(this).on("resultclick", function (event, mediaInfo) {
+                    _this.onSearchResultClick(mediaInfo);
+                });
+            };
+            BingMediaPicker.prototype.onSearchResultClick = function (mediaInfo) {
+                $.extend(this.contentItem, mediaInfo);
+                this.editContentItemForm.updateMediaInfo();
+            };
+            BingMediaPicker.prototype.getMediaType = function () {
+                return this.mediaTypeRadioButtons.filter(":checked").val();
+            };
+            BingMediaPicker.prototype.convertResultToMediaInfo = function (result, mediaType) {
+                var mediaInfoMap = {
+                    image: {
+                        uri: result.MediaUrl,
+                        mediaType: mediaType,
+                        mediaSource: result.SourceUrl,
+                        attribution: result.SourceUrl
+                    },
+                    video: {
+                        uri: result.MediaUrl,
+                        mediaType: mediaType,
+                        mediaSource: result.MediaUrl,
+                        attribution: result.MediaUrl
+                    },
+                    pdf: {
+                        uri: result.Url,
+                        mediaType: mediaType,
+                        mediaSource: result.Url,
+                        attribution: result.Url
+                    }
+                };
+                return mediaInfoMap[mediaType];
+            };
+            BingMediaPicker.prototype.search = function () {
+                var query = this.searchTextbox.val();
+                var mediaType = this.getMediaType();
+                if(query.trim() === "") {
+                    return;
+                }
+                this.searchResultsBox.empty();
+                this.showProgressBar();
+                switch(mediaType) {
+                    case "image":
+                        this.searchImages(query);
+                        break;
+                    case "video":
+                        this.searchVideos(query);
+                        break;
+                    case "document":
+                        this.searchDocuments(query);
+                        break;
+                }
+            };
+            BingMediaPicker.prototype.searchImages = function (query) {
+                var _this = this;
+                CZ.Service.getBingImages(query).done(function (response) {
+                    _this.hideProgressBar();
+                    if(response.d.length === 0) {
+                        _this.showNoResults();
+                        return;
+                    }
+                    for(var i = 0, len = response.d.length; i < len; ++i) {
+                        var result = response.d[i];
+                        var resultContainer = _this.createImageResult(result);
+                        _this.searchResultsBox.append(resultContainer);
+                        _this.alignThumbnails();
+                    }
+                }).fail(function (error) {
+                    _this.hideProgressBar();
+                    _this.showErrorMessage(error);
+                });
+            };
+            BingMediaPicker.prototype.searchVideos = function (query) {
+                var _this = this;
+                query += " (+site:youtube.com OR +site:vimeo.com)";
+                CZ.Service.getBingVideos(query).done(function (response) {
+                    _this.hideProgressBar();
+                    if(response.d.length === 0) {
+                        _this.showNoResults();
+                        return;
+                    }
+                    for(var i = 0, len = response.d.length; i < len; ++i) {
+                        var result = response.d[i];
+                        var resultContainer = _this.createVideoResult(result);
+                        _this.searchResultsBox.append(resultContainer);
+                        _this.alignThumbnails();
+                    }
+                }).fail(function (error) {
+                    _this.hideProgressBar();
+                    _this.showErrorMessage(error);
+                });
+            };
+            BingMediaPicker.prototype.searchDocuments = function (query) {
+                var _this = this;
+                CZ.Service.getBingDocuments(query, "pdf").done(function (response) {
+                    _this.hideProgressBar();
+                    if(response.d.length === 0) {
+                        _this.showNoResults();
+                        return;
+                    }
+                    for(var i = 0, len = response.d.length; i < len; ++i) {
+                        var result = response.d[i];
+                        var resultContainer = _this.createDocumentResult(result);
+                        _this.searchResultsBox.append(resultContainer);
+                    }
+                }).fail(function (error) {
+                    _this.hideProgressBar();
+                    _this.showErrorMessage(error);
+                });
+            };
+            BingMediaPicker.prototype.createImageResult = function (result) {
+                var _this = this;
+                var rectangle = this.fitThumbnailToContainer(result.Thumbnail.Width / result.Thumbnail.Height, CZ.Settings.mediapickerImageThumbnailMaxWidth, CZ.Settings.mediapickerImageThumbnailMaxHeight);
+                var imageOffset = (CZ.Settings.mediapickerImageThumbnailMaxHeight - rectangle.height) / 2;
+                var container = $("<div></div>", {
+                    class: "cz-bing-result-container",
+                    width: rectangle.width,
+                    "data-actual-width": rectangle.width
+                });
+                var title = $("<div></div>", {
+                    class: "cz-bing-result-title cz-darkgray",
+                    text: result.Title,
+                    title: result.Title
+                });
+                var size = $("<div></div>", {
+                    class: "cz-bing-result-description cz-lightgray",
+                    text: result.Width + "x" + result.Height + " - " + Math.round(result.FileSize / 8 / 1024) + " KB"
+                });
+                var url = $("<a></a>", {
+                    class: "cz-bing-result-description cz-lightgray",
+                    text: result.DisplayUrl,
+                    href: result.MediaUrl,
+                    title: result.DisplayUrl,
+                    "media-source": result.SourceUrl,
+                    target: "_blank"
+                });
+                var thumbnailContainer = $("<div></div>", {
+                    width: "100%",
+                    height: CZ.Settings.mediapickerImageThumbnailMaxHeight
+                });
+                var thumbnail = $("<img></img>", {
+                    class: "cz-bing-result-thumbnail",
+                    src: result.Thumbnail.MediaUrl,
+                    height: rectangle.height,
+                    width: "100%"
+                });
+                thumbnail.css("padding-top", imageOffset + "px");
+                thumbnailContainer.add(title).add(size).click(function (event) {
+                    $(_this).trigger("resultclick", _this.convertResultToMediaInfo(result, "image"));
+                });
+                thumbnailContainer.append(thumbnail);
+                return container.append(thumbnailContainer).append(title).append(size).append(url);
+            };
+            BingMediaPicker.prototype.createVideoResult = function (result) {
+                var _this = this;
+                result.Thumbnail = result.Thumbnail || this.createDefaultThumbnail();
+                var rectangle = this.fitThumbnailToContainer(result.Thumbnail.Width / result.Thumbnail.Height, CZ.Settings.mediapickerVideoThumbnailMaxWidth, CZ.Settings.mediapickerVideoThumbnailMaxHeight);
+                var imageOffset = (CZ.Settings.mediapickerVideoThumbnailMaxHeight - rectangle.height) / 2;
+                var container = $("<div></div>", {
+                    class: "cz-bing-result-container",
+                    width: rectangle.width,
+                    "data-actual-width": rectangle.width
+                });
+                var title = $("<div></div>", {
+                    class: "cz-bing-result-title cz-darkgray",
+                    text: result.Title,
+                    title: result.Title
+                });
+                var size = $("<div></div>", {
+                    class: "cz-bing-result-description cz-lightgray",
+                    text: "Duration - " + (result.RunTime / 1000) + " seconds"
+                });
+                var url = $("<a></a>", {
+                    class: "cz-bing-result-description cz-lightgray",
+                    text: result.MediaUrl,
+                    href: result.MediaUrl,
+                    title: result.MediaUrl,
+                    target: "_blank"
+                });
+                var thumbnailContainer = $("<div></div>", {
+                    width: "100%",
+                    height: CZ.Settings.mediapickerVideoThumbnailMaxHeight
+                });
+                var thumbnail = $("<img></img>", {
+                    class: "cz-bing-result-thumbnail",
+                    src: result.Thumbnail.MediaUrl,
+                    height: rectangle.height,
+                    width: "100%"
+                });
+                thumbnail.css("padding-top", imageOffset + "px");
+                thumbnailContainer.add(title).add(size).click(function (event) {
+                    $(_this).trigger("resultclick", _this.convertResultToMediaInfo(result, "video"));
+                });
+                thumbnailContainer.append(thumbnail);
+                return container.append(thumbnailContainer).append(title).append(size).append(url);
+            };
+            BingMediaPicker.prototype.createDocumentResult = function (result) {
+                var _this = this;
+                var container = $("<div></div>", {
+                    class: "cz-bing-result-container",
+                    width: 300
+                });
+                var title = $("<div></div>", {
+                    class: "cz-bing-result-title cz-darkgray",
+                    text: result.Title,
+                    title: result.Title
+                });
+                var descr = $("<div></div>", {
+                    class: "cz-bing-result-doc-description cz-lightgray",
+                    height: 100,
+                    text: result.Description
+                });
+                var url = $("<a></a>", {
+                    class: "cz-bing-result-description cz-lightgray",
+                    text: result.DisplayUrl,
+                    href: result.Url,
+                    title: result.DisplayUrl,
+                    target: "_blank"
+                });
+                title.add(descr).click(function (event) {
+                    $(_this).trigger("resultclick", _this.convertResultToMediaInfo(result, "pdf"));
+                });
+                return container.append(title).append(descr).append(url);
+            };
+            BingMediaPicker.prototype.showProgressBar = function () {
+                this.progressBar.animate({
+                    opacity: 1
+                });
+            };
+            BingMediaPicker.prototype.hideProgressBar = function () {
+                this.progressBar.animate({
+                    opacity: 0
+                });
+            };
+            BingMediaPicker.prototype.showNoResults = function () {
+                this.searchResultsBox.text("No results.");
+            };
+            BingMediaPicker.prototype.createDefaultThumbnail = function () {
+                return {
+                    ContentType: "image/png",
+                    FileSize: 4638,
+                    Width: 500,
+                    Height: 500,
+                    MediaUrl: "/images/Temp-Thumbnail2.png"
+                };
+            };
+            BingMediaPicker.prototype.showErrorMessage = function (error) {
+                var errorMessagesByStatus = {
+                    "400": "The search request is formed badly. Please contact developers about the error.",
+                    "403": "Please sign in to ChronoZoom to use Bing search.",
+                    "500": "We are sorry, but something went wrong. Please try again later."
+                };
+                var errorMessage = $("<span></span>", {
+                    class: "cz-red",
+                    text: errorMessagesByStatus[error.status]
+                });
+                this.searchResultsBox.append(errorMessage);
+            };
+            BingMediaPicker.prototype.onWindowResize = function () {
+                this.alignThumbnails();
+            };
+            BingMediaPicker.prototype.alignThumbnails = function () {
+                var container = this.searchResultsBox;
+                var elements = container.children();
+                if(elements.length === 0) {
+                    return;
+                }
+                var rowWidth = container.width();
+                var currentRow = {
+                    elements: [],
+                    width: 0
+                };
+                for(var i = 0, len = elements.length; i < len; i++) {
+                    var curElement = $(elements[i]);
+                    var curElementActualWidth = +curElement.attr("data-actual-width");
+                    var curElementOuterWidth = curElement.outerWidth(true);
+                    var curElementInnerWidth = curElement.innerWidth();
+                    if(rowWidth < currentRow.width + curElementActualWidth) {
+                        var delta = rowWidth - currentRow.width;
+                        for(var j = 0, rowLen = currentRow.elements.length; j < rowLen; j++) {
+                            var rowElement = currentRow.elements[j];
+                            var rowElementActualWidth = +rowElement.attr("data-actual-width");
+                            rowElement.width(rowElementActualWidth + delta / rowLen);
+                        }
+                        currentRow.elements = [];
+                        currentRow.elements.push(curElement);
+                        currentRow.width = Math.ceil(curElementActualWidth + curElementOuterWidth - curElementInnerWidth);
+                    } else {
+                        currentRow.elements.push(curElement);
+                        currentRow.width += Math.ceil(curElementActualWidth + curElementOuterWidth - curElementInnerWidth);
+                    }
+                }
+            };
+            BingMediaPicker.prototype.fitThumbnailToContainer = function (aspectRatio, maxWidth, maxHeight) {
+                var maxAspectRatio = maxWidth / maxHeight;
+                var output = {
+                    width: maxHeight * aspectRatio,
+                    height: maxHeight
+                };
+                if(aspectRatio > maxAspectRatio) {
+                    output.width = maxWidth;
+                    output.height = maxWidth / aspectRatio;
+                }
+                return output;
+            };
+            return BingMediaPicker;
+        })();
+        Media.BingMediaPicker = BingMediaPicker;        
+    })(CZ.Media || (CZ.Media = {}));
+    var Media = CZ.Media;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (Media) {
+        (function (SkyDriveMediaPicker) {
+            var editContentItemForm;
+            var contentItem;
+            SkyDriveMediaPicker.filePicker;
+            SkyDriveMediaPicker.filePickerIframe;
+            SkyDriveMediaPicker.logoutButton;
+            SkyDriveMediaPicker.isEnabled;
+            SkyDriveMediaPicker.helperText;
+            var mediaType;
+            function setup(context) {
+                contentItem = context;
+                editContentItemForm = CZ.HomePageViewModel.getFormById("#auth-edit-contentitem-form");
+                SkyDriveMediaPicker.logoutButton = $("<button></button>", {
+                    text: "Logout",
+                    class: "cz-skydrive-logout-button",
+                    click: onLogout
+                });
+                SkyDriveMediaPicker.helperText = $("<label></label>", {
+                    text: "Selected items will be automatically shared",
+                    class: "cz-skydrive-help-text"
+                });
+                SkyDriveMediaPicker.filePicker = showFilePicker().then(onFilePick, onError);
+            }
+            SkyDriveMediaPicker.setup = setup;
+            function showFilePicker() {
+                watchFilePicker(onFilePickerLoad);
+                return WL.fileDialog({
+                    mode: "open",
+                    select: "single"
+                });
+            }
+            function onFilePick(response) {
+                onFilePickerClose();
+                getEmbed(response).then(onContentReceive, onError);
+            }
+            function getEmbed(response) {
+                switch(response.data.files[0].type) {
+                    case "photo":
+                        mediaType = "skydrive-image";
+                        break;
+                    default:
+                        mediaType = "skydrive-document";
+                        break;
+                }
+                return WL.api({
+                    path: response.data.files[0].id + "/embed",
+                    method: "GET"
+                });
+            }
+            function onContentReceive(response) {
+                var src = response.embed_html.match(/src=\"(.*?)\"/i)[1];
+                var uri = src;
+                if(mediaType === "skydrive-image") {
+                    var width = parseFloat(response.embed_html.match(/width="[0-9]+"/)[0].match(/[0-9]+/)[0]);
+                    var height = parseFloat(response.embed_html.match(/height="[0-9]+"/)[0].match(/[0-9]+/)[0]);
+                    uri += ' ' + width + ' ' + height;
+                }
+                var mediaInfo = {
+                    uri: uri,
+                    mediaType: mediaType,
+                    mediaSource: src,
+                    attribution: src
+                };
+                $.extend(contentItem, mediaInfo);
+                editContentItemForm.updateMediaInfo();
+            }
+            function onError(response) {
+                var error = response.error;
+                if(error.code === "user_canceled" || error.code === "request_canceled") {
+                    onFilePickerClose();
+                } else {
+                    console.log(error.message);
+                }
+            }
+            function onLogout() {
+                if(window.confirm("Are you sure want to logout from Skydrive? All your unsaved changes will be lost.")) {
+                    SkyDriveMediaPicker.logoutButton.hide();
+                    SkyDriveMediaPicker.helperText.hide();
+                    SkyDriveMediaPicker.filePicker.cancel();
+                    WL.logout();
+                    window.location.assign("https://login.live.com/oauth20_logout.srf?client_id=" + CZ.Settings.WLAPIClientID + "&redirect_uri=" + window.location.toString());
+                }
+            }
+            function watchFilePicker(callback) {
+                SkyDriveMediaPicker.filePickerIframe = $("iframe[sutra=picker]");
+                if(SkyDriveMediaPicker.filePickerIframe.length > 0) {
+                    callback();
+                } else {
+                    setTimeout(watchFilePicker, 50, callback);
+                }
+            }
+            function onFilePickerLoad() {
+                SkyDriveMediaPicker.logoutButton.appendTo("body");
+                SkyDriveMediaPicker.helperText.appendTo("body");
+                $(window).on("resize", onWindowResize);
+                SkyDriveMediaPicker.filePickerIframe.load(function () {
+                    onWindowResize();
+                    SkyDriveMediaPicker.filePickerIframe.animate({
+                        opacity: 1
+                    });
+                    SkyDriveMediaPicker.logoutButton.animate({
+                        opacity: 1
+                    });
+                    SkyDriveMediaPicker.helperText.animate({
+                        opacity: 1
+                    });
+                });
+            }
+            function onFilePickerClose() {
+                SkyDriveMediaPicker.logoutButton.remove();
+                SkyDriveMediaPicker.helperText.remove();
+                $(window).off("resize", onWindowResize);
+            }
+            function onWindowResize() {
+                var skyDriveFooterHeight = 56;
+                var iframeOffset = SkyDriveMediaPicker.filePickerIframe.offset();
+                var iframeHeight = SkyDriveMediaPicker.filePickerIframe.outerHeight(true);
+                var buttonLeftMargin = parseInt(SkyDriveMediaPicker.logoutButton.css("margin-left"), 10);
+                var buttonTopMargin = parseInt(SkyDriveMediaPicker.logoutButton.css("margin-top"), 10);
+                SkyDriveMediaPicker.logoutButton.offset({
+                    top: iframeOffset.top + iframeHeight - skyDriveFooterHeight + buttonTopMargin,
+                    left: iframeOffset.left + buttonLeftMargin
+                });
+                SkyDriveMediaPicker.helperText.offset({
+                    top: iframeOffset.top + iframeHeight - skyDriveFooterHeight + buttonTopMargin + 1,
+                    left: iframeOffset.left + buttonLeftMargin + 90
+                });
+            }
+        })(Media.SkyDriveMediaPicker || (Media.SkyDriveMediaPicker = {}));
+        var SkyDriveMediaPicker = Media.SkyDriveMediaPicker;
+    })(CZ.Media || (CZ.Media = {}));
+    var Media = CZ.Media;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (Media) {
+        var _mediaPickers = {
+        };
+        var _mediaPickersViews = {
+        };
+        Object.defineProperties(CZ.Media, {
+            mediaPickers: {
+                get: function () {
+                    return _mediaPickers;
+                }
+            },
+            mediaPickersViews: {
+                get: function () {
+                    return _mediaPickersViews;
+                }
+            }
+        });
+        function initialize() {
+            registerMediaPicker("bing", "/images/media/bing-import-50x150.png", CZ.Media.BingMediaPicker, "/ui/media/bing-mediapicker.html");
+            if(CZ.Media.SkyDriveMediaPicker.isEnabled) {
+                registerMediaPicker("skydrive", "/images/media/skydrive-import-50x150.png", CZ.Media.SkyDriveMediaPicker).done(function () {
+                    WL.init({
+                        client_id: CZ.Settings.WLAPIClientID,
+                        redirect_uri: CZ.Settings.WLAPIRedirectUrl,
+                        response_type: "token",
+                        scope: "wl.signin,wl.photos,wl.skydrive,wl.skydrive_update"
+                    });
+                });
+            }
+        }
+        Media.initialize = initialize;
+        function registerMediaPicker(title, iconUrl, type, viewUrl, selector) {
+            var order = Object.keys(_mediaPickers).length;
+            var setup = type.setup;
+            selector = selector || "$('<div></div>')";
+            _mediaPickers[title] = {
+            };
+            return CZ.UILoader.loadHtml(selector, viewUrl).always(function (view) {
+                _mediaPickersViews[title] = view;
+                _mediaPickers[title] = {
+                    title: title,
+                    iconUrl: iconUrl,
+                    order: order,
+                    setup: setup
+                };
+            });
+        }
+        Media.registerMediaPicker = registerMediaPicker;
+    })(CZ.Media || (CZ.Media = {}));
+    var Media = CZ.Media;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (UI) {
+        var MediaList = (function () {
+            function MediaList(container, mediaPickers, context) {
+                this.container = container;
+                this.mediaPickers = mediaPickers;
+                this.context = context;
+                this.container.addClass("cz-medialist");
+                this.fillListOfLinks();
+            }
+            MediaList.prototype.fillListOfLinks = function () {
+                var _this = this;
+                var sortedMediaPickersKeys = Object.keys(this.mediaPickers).sort(function (key1, key2) {
+                    return (_this.mediaPickers[key1].order - _this.mediaPickers[key2].order) > 0;
+                });
+                sortedMediaPickersKeys.forEach(function (key) {
+                    if(_this.mediaPickers.hasOwnProperty(key)) {
+                        var mp = _this.mediaPickers[key];
+                        var link = _this.createMediaPickerLink(mp);
+                        _this.container.append(link);
+                    }
+                });
+            };
+            MediaList.prototype.createMediaPickerLink = function (mp) {
+                var _this = this;
+                var container = $("<div></div>", {
+                    class: "cz-medialist-item",
+                    title: mp.title,
+                    "media-picker": mp.title
+                });
+                var icon = $("<img></img>", {
+                    class: "cz-medialist-item-icon",
+                    src: mp.iconUrl
+                });
+                container.click(function (event) {
+                    mp.setup(_this.context);
+                });
+                container.append(icon);
+                return container;
+            };
+            MediaList.prototype.remove = function () {
+                this.container.empty();
+                this.container.removeClass("cz-medialist");
+            };
+            return MediaList;
+        })();
+        UI.MediaList = MediaList;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
     (function (UI) {
         var FormEditTimeline = (function (_super) {
             __extends(FormEditTimeline, _super);
             function FormEditTimeline(container, formInfo) {
+                var _this = this;
                         _super.call(this, container, formInfo);
                 this.saveButton = container.find(formInfo.saveButton);
                 this.deleteButton = container.find(formInfo.deleteButton);
@@ -10446,10 +11417,14 @@ var CZ;
                 this.timeline = formInfo.context;
                 this.saveButton.off();
                 this.deleteButton.off();
+                this.titleInput.focus(function () {
+                    _this.titleInput.hideError();
+                });
                 this.initialize();
             }
             FormEditTimeline.prototype.initialize = function () {
                 var _this = this;
+                this.saveButton.prop('disabled', false);
                 if(CZ.Authoring.mode === "createTimeline") {
                     this.deleteButton.hide();
                     this.titleTextblock.text("Create Timeline");
@@ -10458,6 +11433,11 @@ var CZ;
                     this.deleteButton.show();
                     this.titleTextblock.text("Edit Timeline");
                     this.saveButton.text("update timeline");
+                } else if(CZ.Authoring.mode === "createRootTimeline") {
+                    this.deleteButton.hide();
+                    this.closeButton.hide();
+                    this.titleTextblock.text("Create Root Timeline");
+                    this.saveButton.text("create timeline");
                 } else {
                     console.log("Unexpected authoring mode in timeline form.");
                     this.close();
@@ -10476,15 +11456,17 @@ var CZ;
                     var isDataValid = false;
                     isDataValid = CZ.Authoring.validateTimelineData(_this.startDate.getDate(), _this.endDate.getDate(), _this.titleInput.val());
                     if(!CZ.Authoring.isNotEmpty(_this.titleInput.val())) {
-                        _this.errorMessage.text('Title is empty');
-                    } else if(!CZ.Authoring.isIntervalPositive(_this.startDate.getDate(), _this.endDate.getDate())) {
-                        _this.errorMessage.text('Result interval is not positive');
+                        _this.titleInput.showError("Title can't be empty");
+                    }
+                    if(!CZ.Authoring.isIntervalPositive(_this.startDate.getDate(), _this.endDate.getDate())) {
+                        _this.errorMessage.text('Time interval should no less than one day');
                     }
                     if(!isDataValid) {
                         return;
                     } else {
                         _this.errorMessage.empty();
                         var self = _this;
+                        _this.saveButton.prop('disabled', true);
                         CZ.Authoring.updateTimeline(_this.timeline, {
                             title: _this.titleInput.val(),
                             start: _this.startDate.getDate(),
@@ -10492,14 +11474,22 @@ var CZ;
                         }).then(function (success) {
                             self.isCancel = false;
                             self.close();
+                            self.timeline.onmouseclick();
                         }, function (error) {
-                            alert("Unable to save changes. Please try again later.");
+                            if(error !== undefined && error !== null) {
+                                self.errorMessage.text(error).show().delay(7000).fadeOut();
+                            } else {
+                                self.errorMessage.text("Sorry, internal server error :(").show().delay(7000).fadeOut();
+                            }
                             console.log(error);
+                        }).always(function () {
+                            _this.saveButton.prop('disabled', false);
                         });
                     }
                 });
                 this.deleteButton.click(function (event) {
                     if(confirm("Are you sure want to delete timeline and all of its nested timelines and exhibits? Delete can't be undone!")) {
+                        var isDataValid = true;
                         CZ.Authoring.removeTimeline(_this.timeline);
                         _this.close();
                     }
@@ -10523,6 +11513,7 @@ var CZ;
                     complete: function () {
                         _this.endDate.remove();
                         _this.startDate.remove();
+                        _this.titleInput.hideError();
                     }
                 });
                 if(this.isCancel && CZ.Authoring.mode === "createTimeline") {
@@ -10627,6 +11618,7 @@ var CZ;
         var FormEditExhibit = (function (_super) {
             __extends(FormEditExhibit, _super);
             function FormEditExhibit(container, formInfo) {
+                var _this = this;
                         _super.call(this, container, formInfo);
                 this.titleTextblock = container.find(formInfo.titleTextblock);
                 this.titleInput = container.find(formInfo.titleInput);
@@ -10636,6 +11628,9 @@ var CZ;
                 this.errorMessage = container.find(formInfo.errorMessage);
                 this.saveButton = container.find(formInfo.saveButton);
                 this.deleteButton = container.find(formInfo.deleteButton);
+                this.titleInput.focus(function () {
+                    _this.titleInput.hideError();
+                });
                 this.contentItemsTemplate = formInfo.contentItemsTemplate;
                 this.exhibit = formInfo.context;
                 this.exhibitCopy = $.extend({
@@ -10647,15 +11642,23 @@ var CZ;
                 delete this.exhibitCopy.children;
                 this.mode = CZ.Authoring.mode;
                 this.isCancel = true;
+                this.isModified = false;
                 this.initUI();
             }
             FormEditExhibit.prototype.initUI = function () {
                 var _this = this;
+                this.saveButton.prop('disabled', false);
+                this.titleInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.datePicker.datePicker.change(function () {
+                    _this.isModified = true;
+                });
                 if(this.mode === "createExhibit") {
                     this.titleTextblock.text("Create Exhibit");
                     this.saveButton.text("create exhibit");
                     this.titleInput.val(this.exhibit.title || "");
-                    this.datePicker.setDate(this.exhibit.infodotDescription.date || "");
+                    this.datePicker.setDate(Number(this.exhibit.infodotDescription.date) || "", true);
                     this.closeButton.show();
                     this.createArtifactButton.show();
                     this.saveButton.show();
@@ -10681,7 +11684,7 @@ var CZ;
                     this.titleTextblock.text("Edit Exhibit");
                     this.saveButton.text("update exhibit");
                     this.titleInput.val(this.exhibit.title || "");
-                    this.datePicker.setDate(this.exhibit.infodotDescription.date || "");
+                    this.datePicker.setDate(Number(this.exhibit.infodotDescription.date) || "", true);
                     this.closeButton.show();
                     this.createArtifactButton.show();
                     this.saveButton.show();
@@ -10712,6 +11715,7 @@ var CZ;
                 }
             };
             FormEditExhibit.prototype.onCreateArtifact = function () {
+                this.isModified = true;
                 if(this.exhibit.contentItems.length < CZ.Settings.infodotMaxContentItemsCount) {
                     this.exhibit.title = this.titleInput.val() || "";
                     this.exhibit.x = this.datePicker.getDate() - this.exhibit.width / 2;
@@ -10731,14 +11735,34 @@ var CZ;
                     this.hide(true);
                     CZ.Authoring.contentItemMode = "createContentItem";
                     CZ.Authoring.showEditContentItemForm(newContentItem, this.exhibit, this, true);
+                } else {
+                    var self = this;
+                    var origMsg = this.errorMessage.text();
+                    this.errorMessage.text("Sorry, only 10 artifacts are allowed in one exhibit").show().delay(7000).fadeOut(function () {
+                        return self.errorMessage.text(origMsg);
+                    });
                 }
             };
             FormEditExhibit.prototype.onSave = function () {
                 var _this = this;
+                var exhibit_x = this.datePicker.getDate() - this.exhibit.width / 2;
+                var exhibit_y = this.exhibit.y;
+                if(exhibit_x + this.exhibit.width >= this.exhibit.parent.x + this.exhibit.parent.width) {
+                    exhibit_x = this.exhibit.parent.x + this.exhibit.parent.width - this.exhibit.width;
+                }
+                if(exhibit_x <= this.exhibit.parent.x) {
+                    exhibit_x = this.exhibit.parent.x;
+                }
+                if(exhibit_y + this.exhibit.height >= this.exhibit.parent.y + this.exhibit.parent.height) {
+                    exhibit_y = this.exhibit.parent.y + this.exhibit.parent.height - this.exhibit.height;
+                }
+                if(exhibit_y <= this.exhibit.parent.y) {
+                    exhibit_y = this.exhibit.parent.y;
+                }
                 var newExhibit = {
                     title: this.titleInput.val() || "",
-                    x: this.datePicker.getDate() - this.exhibit.width / 2,
-                    y: this.exhibit.y,
+                    x: exhibit_x,
+                    y: exhibit_y,
                     height: this.exhibit.height,
                     width: this.exhibit.width,
                     infodotDescription: {
@@ -10747,27 +11771,46 @@ var CZ;
                     contentItems: this.exhibit.contentItems || [],
                     type: "infodot"
                 };
+                if(!CZ.Authoring.isNotEmpty(this.titleInput.val())) {
+                    this.titleInput.showError("Title can't be empty");
+                }
+                if(CZ.Authoring.checkExhibitIntersections(this.exhibit.parent, newExhibit, true)) {
+                    this.errorMessage.text("Exhibit intersects other elemenets");
+                }
                 if(CZ.Authoring.validateExhibitData(this.datePicker.getDate(), this.titleInput.val(), this.exhibit.contentItems) && CZ.Authoring.checkExhibitIntersections(this.exhibit.parent, newExhibit, true) && this.exhibit.contentItems.length >= 1 && this.exhibit.contentItems.length <= CZ.Settings.infodotMaxContentItemsCount) {
+                    this.saveButton.prop('disabled', true);
                     CZ.Authoring.updateExhibit(this.exhibitCopy, newExhibit).then(function (success) {
                         _this.isCancel = false;
+                        _this.isModified = false;
                         _this.close();
+                        _this.exhibit.id = arguments[0].id;
+                        _this.exhibit.onmouseclick();
                     }, function (error) {
-                        alert("Unable to save changes. Please try again later.");
+                        var errorMessage = JSON.parse(error.responseText).errorMessage;
+                        if(errorMessage !== "") {
+                            _this.errorMessage.text(errorMessage);
+                        } else {
+                            _this.errorMessage.text("Sorry, internal server error :(");
+                        }
+                        _this.errorMessage.show().delay(7000).fadeOut();
+                    }).always(function () {
+                        _this.saveButton.prop('disabled', false);
                     });
                 } else if(this.exhibit.contentItems.length === 0) {
                     var self = this;
                     var origMsg = this.errorMessage.text();
-                    this.errorMessage.text("Cannot create exhibit without content items.").show().delay(7000).fadeOut(function () {
+                    this.errorMessage.text("Cannot create exhibit without artifacts.").show().delay(7000).fadeOut(function () {
                         return self.errorMessage.text(origMsg);
                     });
                 } else {
-                    this.errorMessage.show().delay(7000).fadeOut();
+                    this.errorMessage.text("One or more fields filled wrong").show().delay(7000).fadeOut();
                 }
             };
             FormEditExhibit.prototype.onDelete = function () {
                 if(confirm("Are you sure want to delete the exhibit and all of its content items? Delete can't be undone!")) {
                     CZ.Authoring.removeExhibit(this.exhibit);
                     this.isCancel = false;
+                    this.isModified = false;
                     this.close();
                 }
             };
@@ -10796,6 +11839,7 @@ var CZ;
             };
             FormEditExhibit.prototype.onContentItemRemoved = function (item, _) {
                 var idx;
+                this.isModified = true;
                 if(typeof item.data.order !== 'undefined' && item.data.order !== null && item.data.order >= 0 && item.data.order < CZ.Settings.infodotMaxContentItemsCount) {
                     idx = item.data.order;
                 } else if(typeof item.data.guid !== 'undefined' && item.data.guid !== null) {
@@ -10815,6 +11859,7 @@ var CZ;
                 }
             };
             FormEditExhibit.prototype.onContentItemMove = function (item, indexStart, indexStop) {
+                this.isModified = true;
                 var ci = this.exhibit.contentItems.splice(indexStart, 1)[0];
                 this.exhibit.contentItems.splice(indexStop, 0, ci);
                 for(var i = 0; i < this.exhibit.contentItems.length; i++) {
@@ -10846,6 +11891,13 @@ var CZ;
             FormEditExhibit.prototype.close = function (noAnimation) {
                 if (typeof noAnimation === "undefined") { noAnimation = false; }
                 var _this = this;
+                if(this.isModified) {
+                    if(window.confirm("There is unsaved data. Do you want to close without saving?")) {
+                        this.isModified = false;
+                    } else {
+                        return;
+                    }
+                }
                 _super.prototype.close.call(this, noAnimation ? undefined : {
                     effect: "slide",
                     direction: "left",
@@ -10853,6 +11905,7 @@ var CZ;
                     complete: function () {
                         _this.datePicker.remove();
                         _this.contentItemsListBox.clear();
+                        _this.titleInput.hideError();
                     }
                 });
                 if(this.isCancel) {
@@ -10881,6 +11934,7 @@ var CZ;
         var FormEditCI = (function (_super) {
             __extends(FormEditCI, _super);
             function FormEditCI(container, formInfo) {
+                var _this = this;
                         _super.call(this, container, formInfo);
                 this.titleTextblock = container.find(formInfo.titleTextblock);
                 this.titleInput = container.find(formInfo.titleInput);
@@ -10891,68 +11945,117 @@ var CZ;
                 this.descriptionInput = container.find(formInfo.descriptionInput);
                 this.errorMessage = container.find(formInfo.errorMessage);
                 this.saveButton = container.find(formInfo.saveButton);
+                this.mediaListContainer = container.find(formInfo.mediaListContainer);
+                this.titleInput.focus(function () {
+                    _this.titleInput.hideError();
+                });
+                this.mediaInput.focus(function () {
+                    _this.mediaInput.hideError();
+                });
+                this.mediaSourceInput.focus(function () {
+                    _this.mediaSourceInput.hideError();
+                });
                 this.prevForm = formInfo.prevForm;
                 this.exhibit = formInfo.context.exhibit;
                 this.contentItem = formInfo.context.contentItem;
                 this.mode = CZ.Authoring.mode;
                 this.isCancel = true;
+                this.isModified = false;
                 this.initUI();
             }
             FormEditCI.prototype.initUI = function () {
                 var _this = this;
+                this.mediaList = new CZ.UI.MediaList(this.mediaListContainer, CZ.Media.mediaPickers, this.contentItem);
+                var that = this;
+                this.saveButton.prop('disabled', false);
+                this.titleInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.mediaInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.mediaSourceInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.mediaTypeInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.attributionInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.descriptionInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.descriptionInput.on('keyup', function (e) {
+                    if(e.which == 13) {
+                        that.saveButton.click(function () {
+                            return that.onSave();
+                        });
+                    }
+                });
+                this.descriptionInput.on('keydown', function (e) {
+                    if(e.which == 13) {
+                        that.saveButton.off();
+                    }
+                });
+                if(CZ.Media.SkyDriveMediaPicker.isEnabled && this.mediaTypeInput.find("option[value='skydrive-image']").length === 0) {
+                    $("<option></option>", {
+                        value: "skydrive-image",
+                        text: " Skydrive Image "
+                    }).appendTo(this.mediaTypeInput);
+                    $("<option></option>", {
+                        value: "skydrive-document",
+                        text: " Skydrive Document "
+                    }).appendTo(this.mediaTypeInput);
+                }
+                this.titleInput.val(this.contentItem.title || "");
+                this.mediaInput.val(this.contentItem.uri || "");
+                this.mediaSourceInput.val(this.contentItem.mediaSource || "");
+                this.mediaTypeInput.val(this.contentItem.mediaType || "");
+                this.attributionInput.val(this.contentItem.attribution || "");
+                this.descriptionInput.val(this.contentItem.description || "");
+                this.saveButton.off();
+                this.saveButton.click(function () {
+                    return _this.onSave();
+                });
                 if(CZ.Authoring.contentItemMode === "createContentItem") {
                     this.titleTextblock.text("Create New");
                     this.saveButton.text("create artifiact");
-                    this.titleInput.val(this.contentItem.title || "");
-                    this.mediaInput.val(this.contentItem.uri || "");
-                    this.mediaSourceInput.val(this.contentItem.mediaSource || "");
-                    this.mediaTypeInput.val(this.contentItem.mediaType || "");
-                    this.attributionInput.val(this.contentItem.attribution || "");
-                    this.descriptionInput.val(this.contentItem.description || "");
                     this.closeButton.hide();
-                    this.saveButton.show();
-                    this.saveButton.off();
-                    this.saveButton.click(function () {
-                        return _this.onSave();
-                    });
                 } else if(CZ.Authoring.contentItemMode === "editContentItem") {
                     this.titleTextblock.text("Edit");
                     this.saveButton.text("update artifact");
-                    this.titleInput.val(this.contentItem.title || "");
-                    this.mediaInput.val(this.contentItem.uri || "");
-                    this.mediaSourceInput.val(this.contentItem.mediaSource || "");
-                    this.mediaTypeInput.val(this.contentItem.mediaType || "");
-                    this.attributionInput.val(this.contentItem.attribution || "");
-                    this.descriptionInput.val(this.contentItem.description || "");
                     if(this.prevForm && this.prevForm instanceof UI.FormEditExhibit) {
                         this.closeButton.hide();
                     } else {
                         this.closeButton.show();
                     }
-                    this.saveButton.show();
-                    this.saveButton.off();
-                    this.saveButton.click(function () {
-                        return _this.onSave();
-                    });
                 } else {
                     console.log("Unexpected authoring mode in content item form.");
                     this.close();
                 }
+                this.saveButton.show();
             };
             FormEditCI.prototype.onSave = function () {
                 var _this = this;
                 var newContentItem = {
                     title: this.titleInput.val() || "",
-                    uri: decodeURIComponent(this.mediaInput.val()) || "",
+                    uri: this.mediaInput.val() || "",
                     mediaSource: this.mediaSourceInput.val() || "",
                     mediaType: this.mediaTypeInput.val() || "",
                     attribution: this.attributionInput.val() || "",
                     description: this.descriptionInput.val() || "",
                     order: this.contentItem.order
                 };
+                if(!CZ.Authoring.isNotEmpty(newContentItem.title)) {
+                    this.titleInput.showError("Title can't be empty");
+                }
+                if(!CZ.Authoring.isNotEmpty(newContentItem.uri)) {
+                    this.mediaInput.showError("URL can't be empty");
+                }
                 if(CZ.Authoring.validateContentItems([
                     newContentItem
-                ])) {
+                ], this.mediaInput)) {
                     if(CZ.Authoring.contentItemMode === "createContentItem") {
                         if(this.prevForm && this.prevForm instanceof UI.FormEditExhibit) {
                             this.isCancel = false;
@@ -10960,6 +12063,7 @@ var CZ;
                             $.extend(this.exhibit.contentItems[this.contentItem.order], newContentItem);
                             (this.prevForm).exhibit = this.exhibit = CZ.Authoring.renewExhibit(this.exhibit);
                             CZ.Common.vc.virtualCanvas("requestInvalidate");
+                            this.isModified = false;
                             this.back();
                         }
                     } else if(CZ.Authoring.contentItemMode === "editContentItem") {
@@ -10971,20 +12075,39 @@ var CZ;
                             clickedListItem.descrTextblock.text(newContentItem.description);
                             $.extend(this.exhibit.contentItems[this.contentItem.order], newContentItem);
                             (this.prevForm).exhibit = this.exhibit = CZ.Authoring.renewExhibit(this.exhibit);
+                            (this.prevForm).isModified = true;
                             CZ.Common.vc.virtualCanvas("requestInvalidate");
+                            this.isModified = false;
                             this.back();
                         } else {
+                            this.saveButton.prop('disabled', true);
                             CZ.Authoring.updateContentItem(this.exhibit, this.contentItem, newContentItem).then(function (response) {
                                 _this.isCancel = false;
+                                _this.isModified = false;
                                 _this.close();
                             }, function (error) {
-                                alert("Unable to save changes. Please try again later.");
+                                var errorMessage = error.statusText;
+                                if(errorMessage.match(/Media Source/)) {
+                                    _this.errorMessage.text("One or more fields filled wrong");
+                                    _this.mediaSourceInput.showError("Media Source URL is not a valid URL");
+                                } else {
+                                    _this.errorMessage.text("Sorry, internal server error :(");
+                                }
+                                _this.errorMessage.show().delay(7000).fadeOut();
+                            }).always(function () {
+                                _this.saveButton.prop('disabled', false);
                             });
                         }
                     }
                 } else {
-                    this.errorMessage.show().delay(7000).fadeOut();
+                    this.errorMessage.text("One or more fields filled wrong").show().delay(7000).fadeOut();
                 }
+            };
+            FormEditCI.prototype.updateMediaInfo = function () {
+                this.mediaInput.val(this.contentItem.uri || "");
+                this.mediaSourceInput.val(this.contentItem.mediaSource || "");
+                this.mediaTypeInput.val(this.contentItem.mediaType || "");
+                this.attributionInput.val(this.contentItem.attribution || "");
             };
             FormEditCI.prototype.show = function (noAnimation) {
                 if (typeof noAnimation === "undefined") { noAnimation = false; }
@@ -10999,10 +12122,24 @@ var CZ;
             };
             FormEditCI.prototype.close = function (noAnimation) {
                 if (typeof noAnimation === "undefined") { noAnimation = false; }
+                var _this = this;
+                if(this.isModified) {
+                    if(window.confirm("There is unsaved data. Do you want to close without saving?")) {
+                        this.isModified = false;
+                    } else {
+                        return;
+                    }
+                }
                 _super.prototype.close.call(this, noAnimation ? undefined : {
                     effect: "slide",
                     direction: "left",
-                    duration: 500
+                    duration: 500,
+                    complete: function () {
+                        _this.mediaList.remove();
+                        _this.mediaInput.hideError();
+                        _this.titleInput.hideError();
+                        _this.mediaSourceInput.hideError();
+                    }
                 });
                 if(this.isCancel) {
                     if(CZ.Authoring.contentItemMode === "createContentItem") {
@@ -11086,13 +12223,18 @@ var CZ;
                 this.profilePanel = $(document.body).find(formInfo.profilePanel).first();
                 this.loginPanelLogin = $(document.body).find(formInfo.loginPanelLogin).first();
                 this.allowRedirect = formInfo.allowRedirect;
+                this.collectionTheme = formInfo.collectionTheme;
+                this.collectionThemeInput = container.find(formInfo.collectionThemeInput);
+                this.collectionThemeWrapper = container.find(formInfo.collectionThemeWrapper);
+                this.usernameInput.off("keypress");
+                this.emailInput.off("keypress");
                 this.initialize();
             }
             FormEditProfile.prototype.validEmail = function (e) {
                 if(String(e).length > 254) {
                     return false;
                 }
-                var filter = /^([\w^_]+(?:([-_\.\+][\w^_]+)|)|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
+                var filter = /^([\w^_]+((?:([-_.\+][\w^_]+)|))+|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
                 return String(e).search(filter) != -1;
             };
             FormEditProfile.prototype.validUsername = function (e) {
@@ -11102,15 +12244,20 @@ var CZ;
             FormEditProfile.prototype.initialize = function () {
                 var _this = this;
                 var profile = CZ.Service.getProfile();
+                if(this.collectionThemeWrapper) {
+                    this.collectionThemeWrapper.show();
+                }
                 profile.done(function (data) {
                     if(data.DisplayName != null) {
                         _this.usernameInput.val(data.DisplayName);
                         if(data.DisplayName != "") {
                             _this.usernameInput.prop('disabled', true);
+                        }
+                        _this.emailInput.val(data.Email);
+                        if(data.Email !== undefined && data.Email !== '' && data.Email != null) {
                             _this.agreeInput.attr('checked', true);
                             _this.agreeInput.prop('disabled', true);
                         }
-                        _this.emailInput.val(data.Email);
                     }
                 });
                 this.saveButton.click(function (event) {
@@ -11119,27 +12266,44 @@ var CZ;
                         alert("Provided incorrect username, \n'a-z', '0-9', '-', '_' - characters allowed only. ");
                         return;
                     }
-                    isValid = _this.validEmail(_this.emailInput.val());
-                    if(!isValid) {
-                        alert("Provided incorrect email address");
-                        return;
+                    var emailAddress = "";
+                    if(_this.emailInput.val()) {
+                        var emailIsValid = _this.validEmail(_this.emailInput.val());
+                        if(!emailIsValid) {
+                            alert("Provided incorrect email address");
+                            return;
+                        }
+                        var agreeTerms = _this.agreeInput.prop("checked");
+                        if(!agreeTerms) {
+                            alert("Please agree with provided terms");
+                            return;
+                        }
+                        emailAddress = _this.emailInput.val();
                     }
-                    isValid = _this.agreeInput.prop("checked");
-                    if(!isValid) {
-                        alert("Please agree with provided terms");
-                        return;
-                    }
+                    _this.collectionTheme = _this.collectionThemeInput.val();
                     CZ.Service.getProfile().done(function (curUser) {
                         CZ.Service.getProfile(_this.usernameInput.val()).done(function (getUser) {
                             if(curUser.DisplayName == null && typeof getUser.DisplayName != "undefined") {
                                 alert("Sorry, this username is already in use. Please try again.");
                                 return;
                             }
-                            CZ.Service.putProfile(_this.usernameInput.val(), _this.emailInput.val()).then(function (success) {
-                                if(_this.allowRedirect) {
-                                    window.location.assign("\\" + success);
+                            CZ.Service.putProfile(_this.usernameInput.val(), emailAddress).then(function (success) {
+                                if(_this.collectionTheme) {
+                                    CZ.Service.putCollection(_this.usernameInput.val(), _this.usernameInput.val(), {
+                                        theme: _this.collectionTheme
+                                    }).then(function () {
+                                        if(_this.allowRedirect) {
+                                            window.location.assign("/" + success);
+                                        } else {
+                                            _this.close();
+                                        }
+                                    });
                                 } else {
-                                    _this.close();
+                                    if(_this.allowRedirect) {
+                                        window.location.assign("/" + success);
+                                    } else {
+                                        _this.close();
+                                    }
                                 }
                             }, function (error) {
                                 alert("Unable to save changes. Please try again later.");
@@ -11149,14 +12313,16 @@ var CZ;
                     });
                 });
                 this.logoutButton.click(function (event) {
-                    return $.ajax({
-                        url: "/account/logout"
-                    }).done(function (data) {
-                        _this.profilePanel.hide();
-                        _this.loginPanel.show();
-                        _this.close();
-                    });
+                    WL.logout();
+                    window.location.assign("/pages/logoff.aspx");
                 });
+                var preventEnterKeyPress = function (event) {
+                    if(event.which == 13) {
+                        event.preventDefault();
+                    }
+                };
+                this.usernameInput.keypress(preventEnterKeyPress);
+                this.emailInput.keypress(preventEnterKeyPress);
             };
             FormEditProfile.prototype.show = function () {
                 _super.prototype.show.call(this, {
@@ -11164,6 +12330,7 @@ var CZ;
                     direction: "right",
                     duration: 500
                 });
+                this.collectionThemeInput.val(this.collectionTheme);
                 this.activationSource.addClass("active");
             };
             FormEditProfile.prototype.close = function () {
@@ -11173,6 +12340,9 @@ var CZ;
                     duration: 500
                 });
                 this.activationSource.removeClass("active");
+            };
+            FormEditProfile.prototype.setTheme = function (theme) {
+                this.collectionTheme = theme;
             };
             return FormEditProfile;
         })(CZ.UI.FormUpdateEntity);
@@ -11213,6 +12383,189 @@ var CZ;
 var CZ;
 (function (CZ) {
     (function (UI) {
+        var FormHeaderSearch = (function (_super) {
+            __extends(FormHeaderSearch, _super);
+            function FormHeaderSearch(container, formInfo) {
+                        _super.call(this, container, formInfo);
+                this.searchTextbox = container.find(formInfo.searchTextbox);
+                this.searchResultsBox = container.find(formInfo.searchResultsBox);
+                this.progressBar = container.find(formInfo.progressBar);
+                this.resultSections = container.find(formInfo.resultSections);
+                this.resultsCountTextblock = container.find(formInfo.resultsCountTextblock);
+                this.initialize();
+            }
+            FormHeaderSearch.prototype.initialize = function () {
+                var _this = this;
+                this.fillFormWithSearchResults();
+                this.searchResults = [];
+                this.progressBar.css("opacity", 0);
+                this.hideResultsCount();
+                this.clearResultSections();
+                this.hideSearchResults();
+                this.searchTextbox.off();
+                var onSearchQueryChanged = function (event) {
+                    clearTimeout(_this.delayedSearchRequest);
+                    _this.delayedSearchRequest = setTimeout(function () {
+                        var query = _this.searchTextbox.val();
+                        query = _this.escapeSearchQuery(query);
+                        _this.showProgressBar();
+                        _this.sendSearchQuery(query).then(function (response) {
+                            _this.hideProgressBar();
+                            _this.searchResults = response ? response.d : response;
+                            _this.updateSearchResults();
+                        }, function (error) {
+                            console.log("Error connecting to service: search.\n" + error.responseText);
+                        });
+                    }, 300);
+                };
+                this.searchTextbox.on("input search", onSearchQueryChanged);
+                var isIE9 = (CZ.Settings.ie === 9);
+                if(isIE9) {
+                    this.searchTextbox.on("keyup", function (event) {
+                        switch(event.which) {
+                            case 8:
+                            case 46:
+                                onSearchQueryChanged(event);
+                                break;
+                        }
+                    });
+                    this.searchTextbox.on("cut", onSearchQueryChanged);
+                }
+            };
+            FormHeaderSearch.prototype.sendSearchQuery = function (query) {
+                return (query === "") ? $.Deferred().resolve(null).promise() : CZ.Service.getSearch(query);
+            };
+            FormHeaderSearch.prototype.updateSearchResults = function () {
+                var _this = this;
+                this.clearResultSections();
+                if(this.searchResults === null) {
+                    this.hideSearchResults();
+                    return;
+                }
+                if(this.searchResults.length === 0) {
+                    this.showNoResults();
+                    return;
+                }
+                var resultTypes = {
+                    0: "exhibit",
+                    1: "timeline",
+                    2: "contentItem"
+                };
+                var sections = {
+                    exhibit: $(this.resultSections[1]),
+                    timeline: $(this.resultSections[0]),
+                    contentItem: $(this.resultSections[2])
+                };
+                var idPrefixes = {
+                    exhibit: "e",
+                    timeline: "t",
+                    contentItem: ""
+                };
+                this.searchResults.forEach(function (item) {
+                    var form = _this;
+                    var resultType = resultTypes[item.objectType];
+                    var resultId = idPrefixes[resultType] + item.id;
+                    var resultTitle = item.title;
+                    sections[resultType].append($("<div></div>", {
+                        class: "cz-form-search-result",
+                        text: resultTitle,
+                        "result-id": resultId,
+                        "result-type": resultType,
+                        click: function () {
+                            var self = $(this);
+                            CZ.Search.goToSearchResult(self.attr("result-id"), self.attr("result-type"));
+                            form.close();
+                        }
+                    }));
+                });
+                this.showResultsCount();
+                this.showNonEmptySections();
+            };
+            FormHeaderSearch.prototype.fillFormWithSearchResults = function () {
+                this.container.show();
+                this.searchResultsBox.css("height", "calc(100% - 150px)");
+                this.searchResultsBox.css("height", "-moz-calc(100% - 150px)");
+                this.searchResultsBox.css("height", "-webkit-calc(100% - 150px)");
+                this.searchResultsBox.css("height", "-o-calc(100% - 150px)");
+                this.container.hide();
+            };
+            FormHeaderSearch.prototype.clearResultSections = function () {
+                this.resultSections.find("div").remove();
+            };
+            FormHeaderSearch.prototype.escapeSearchQuery = function (query) {
+                return query ? query.replace(/"/g, "") : "";
+            };
+            FormHeaderSearch.prototype.getResultsCountString = function () {
+                var count = this.searchResults.length;
+                return count + ((count === 1) ? " result" : " results");
+            };
+            FormHeaderSearch.prototype.showProgressBar = function () {
+                this.progressBar.animate({
+                    opacity: 1
+                });
+            };
+            FormHeaderSearch.prototype.hideProgressBar = function () {
+                this.progressBar.animate({
+                    opacity: 0
+                });
+            };
+            FormHeaderSearch.prototype.showNonEmptySections = function () {
+                this.searchResultsBox.show();
+                this.resultSections.show();
+                this.resultSections.each(function (i, item) {
+                    var results = $(item).find("div");
+                    if(results.length === 0) {
+                        $(item).hide();
+                    }
+                });
+            };
+            FormHeaderSearch.prototype.showNoResults = function () {
+                this.searchResultsBox.show();
+                this.resultSections.hide();
+                this.resultsCountTextblock.show();
+                this.resultsCountTextblock.text("No results");
+            };
+            FormHeaderSearch.prototype.showResultsCount = function () {
+                this.searchResultsBox.show();
+                this.resultsCountTextblock.show();
+                this.resultsCountTextblock.text(this.getResultsCountString());
+            };
+            FormHeaderSearch.prototype.hideResultsCount = function () {
+                this.resultsCountTextblock.hide();
+            };
+            FormHeaderSearch.prototype.hideSearchResults = function () {
+                this.hideResultsCount();
+                this.searchResultsBox.hide();
+            };
+            FormHeaderSearch.prototype.show = function () {
+                var _this = this;
+                _super.prototype.show.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500,
+                    complete: function () {
+                        _this.searchTextbox.focus();
+                    }
+                });
+                this.activationSource.addClass("active");
+            };
+            FormHeaderSearch.prototype.close = function () {
+                _super.prototype.close.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500
+                });
+                this.activationSource.removeClass("active");
+            };
+            return FormHeaderSearch;
+        })(CZ.UI.FormBase);
+        UI.FormHeaderSearch = FormHeaderSearch;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (UI) {
         var TimeSeriesDataForm = (function (_super) {
             __extends(TimeSeriesDataForm, _super);
             function TimeSeriesDataForm(container, formInfo) {
@@ -11235,14 +12588,18 @@ var CZ;
                     });
                     preloadedlist.forEach(function (preloaded) {
                         var li = $('<li></li>').css("margin-left", 10).css("margin-bottom", "3px").height(22).appendTo(existingTimSeriesList);
-                        var link = $('<a></a>').addClass("cz-form-btn").appendTo(li);
-                        link.css("color", "#25a1ea");
+                        var link = $('<a></a>').addClass("cz-form-preloadedrecord").appendTo(li);
+                        link.css("color", "#0464a2");
+                        link.css("font-size", "16px");
                         link.css("float", "left");
+                        link.css("width", "140px");
+                        link.css("cursor", "pointer");
                         link.text(preloaded.name);
-                        var div = $("<div></div>").addClass("cz-form-preloadedrecord").appendTo(li);
+                        var div = $("<span></span>").addClass("cz-form-preloadedrecord").appendTo(li);
                         div.text("Source:");
                         var sourceDiv = $("<a></a>").addClass("cz-form-preloadedrecord").appendTo(li);
-                        sourceDiv.css("color", "blue");
+                        sourceDiv.css("color", "#0464a2");
+                        sourceDiv.css("cursor", "pointer");
                         sourceDiv.text(preloaded.source);
                         sourceDiv.prop("href", preloaded.link);
                         link.click(function (e) {
@@ -11349,6 +12706,751 @@ var CZ;
 })(CZ || (CZ = {}));
 var CZ;
 (function (CZ) {
+    (function (UI) {
+        var MessageWindow = (function (_super) {
+            __extends(MessageWindow, _super);
+            function MessageWindow(container, message, title) {
+                        _super.call(this, container, {
+            activationSource: null,
+            prevForm: null,
+            navButton: ".cz-form-nav",
+            closeButton: ".cz-form-close-btn > .cz-form-btn",
+            titleTextblock: ".cz-form-title",
+            contentContainer: ".cz-form-content"
+        });
+                this.tourTitleInput = this.container.find(".cz-form-label");
+                this.titleTextblock.text(title || "ChronoZoom");
+                this.tourTitleInput.text(message);
+                this.setHeight();
+            }
+            MessageWindow.prototype.show = function () {
+                var _this = this;
+                _super.prototype.show.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 300,
+                    complete: function () {
+                        $(document).on("keyup", _this, _this.onDocumentKeyPress);
+                    }
+                });
+            };
+            MessageWindow.prototype.close = function () {
+                var _this = this;
+                _super.prototype.close.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 300,
+                    complete: function () {
+                        $(document).off("keyup", _this.onDocumentKeyPress);
+                    }
+                });
+            };
+            MessageWindow.prototype.onDocumentKeyPress = function (e) {
+                var self = e.data;
+                if(e.which == 27 && self.isFormVisible) {
+                    self.closeButton.click();
+                }
+            };
+            MessageWindow.prototype.setHeight = function () {
+                this.container.show();
+                var messageHeight = this.tourTitleInput.outerHeight(true);
+                this.contentContainer.height(messageHeight);
+                this.container.hide();
+            };
+            return MessageWindow;
+        })(CZ.UI.FormBase);
+        UI.MessageWindow = MessageWindow;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (UI) {
+        var FormHeaderSessionExpired = (function (_super) {
+            __extends(FormHeaderSessionExpired, _super);
+            function FormHeaderSessionExpired(container, formInfo) {
+                        _super.call(this, container, formInfo);
+                this.time = 60;
+                this.sessionTimeSpan = container.find(formInfo.sessionTimeSpan);
+                this.sessionButton = container.find(formInfo.sessionButton);
+                this.initialize();
+            }
+            FormHeaderSessionExpired.prototype.initialize = function () {
+                var _this = this;
+                this.sessionButton.click(function () {
+                    CZ.Service.getProfile();
+                    clearTimeout(_this.timer);
+                    _this.time = 60;
+                    _this.close();
+                    _this.sessionTimeSpan.html(_this.time.toString());
+                    CZ.Authoring.resetSessionTimer();
+                    return false;
+                });
+            };
+            FormHeaderSessionExpired.prototype.onTimer = function () {
+                var _this = this;
+                if(this.time > 0) {
+                    this.time--;
+                    this.sessionTimeSpan.html(this.time.toString());
+                    clearTimeout(this.timer);
+                    this.timer = setTimeout(function () {
+                        _this.onTimer();
+                    }, 1000);
+                } else {
+                    clearTimeout(this.timer);
+                    this.close();
+                    document.location.href = "/account/logout";
+                }
+            };
+            FormHeaderSessionExpired.prototype.show = function () {
+                var _this = this;
+                _super.prototype.show.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500,
+                    complete: function () {
+                    }
+                });
+                this.timer = setTimeout(function () {
+                    _this.onTimer();
+                }, 1000);
+                this.activationSource.addClass("active");
+            };
+            FormHeaderSessionExpired.prototype.close = function () {
+                _super.prototype.close.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500
+                });
+                this.activationSource.removeClass("active");
+            };
+            return FormHeaderSessionExpired;
+        })(CZ.UI.FormBase);
+        UI.FormHeaderSessionExpired = FormHeaderSessionExpired;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (UI) {
+        var FormMediaPicker = (function (_super) {
+            __extends(FormMediaPicker, _super);
+            function FormMediaPicker(container, mediaPickerContainer, title, formInfo) {
+                        _super.call(this, container, formInfo);
+                this.titleTextblock.text(title);
+                this.contentContainer.append(mediaPickerContainer);
+                $(this).off();
+            }
+            FormMediaPicker.prototype.show = function () {
+                var _this = this;
+                _super.prototype.show.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500,
+                    complete: function () {
+                        $(_this).trigger("showcompleted");
+                    }
+                });
+                this.activationSource.addClass("active");
+            };
+            FormMediaPicker.prototype.close = function () {
+                var _this = this;
+                _super.prototype.close.call(this, {
+                    effect: "slide",
+                    direction: "left",
+                    duration: 500,
+                    complete: function () {
+                        $(_this).trigger("closecompleted");
+                    }
+                });
+                this.activationSource.removeClass("active");
+            };
+            return FormMediaPicker;
+        })(CZ.UI.FormBase);
+        UI.FormMediaPicker = FormMediaPicker;        
+    })(CZ.UI || (CZ.UI = {}));
+    var UI = CZ.UI;
+})(CZ || (CZ = {}));
+var CZ;
+(function (CZ) {
+    (function (StartPage) {
+        var _isRegimesVisible;
+        StartPage.tileData = [
+            {
+                "Idx": 0,
+                "Title": "Big History is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_bighistory.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.4999999998954347&y=-0.46459331778482354&w=3.841695822797034e-12&h=3.7430627449314544e-12"
+            }, 
+            {
+                "Idx": 1,
+                "Title": "CERN is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_cern.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.49999999192440875&y=-0.4645933209201501&w=3.729306137185042e-11&h=3.633558592459924e-11"
+            }, 
+            {
+                "Idx": 2,
+                "Title": "Earth Science is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_earthscience.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.49999999988061194&y=-0.46459331795948755&w=4.546120315559252e-12&h=4.4294015903520115e-12"
+            }, 
+            {
+                "Idx": 3,
+                "Title": "King Tut is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_kingtut.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.49999967062717304&y=-0.4645931999741229&w=3.5221148563086766e-10&h=3.4316868149181225e-10"
+            }, 
+            {
+                "Idx": 4,
+                "Title": "Napoleon is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_napoleon.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.4999999840411981&y=-0.46459346560505227&w=5.935054278147061e-10&h=5.782675563705605e-10"
+            }, 
+            {
+                "Idx": 5,
+                "Title": "World War I is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_ww1.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.49999999485392826&y=-0.4645933221621095&w=3.314938789411939e-12&h=3.229829860746773e-12"
+            }, 
+            {
+                "Idx": 6,
+                "Title": "Coluseum is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_colosseum.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.49999988732590944&y=-0.4645934478931077&w=1.0069124184819225e-9&h=9.810605875309654e-10"
+            }, 
+            {
+                "Idx": 7,
+                "Title": "Justin Morrill is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_justin_morrill.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.4999999897945675&y=-0.46459338150077905&w=1.9362194151655837e-10&h=1.8865082227261387e-10"
+            }, 
+            {
+                "Idx": 8,
+                "Title": "Big History 2 is my favorite course ever",
+                "Thumbnail": "../images/dummy/tile_bighistory.jpg",
+                "Author": "Some Author",
+                "URL": "http://www.chronozoom.com/#/t00000000-0000-0000-0000-000000000000@x=0.4996898109169686&y=-0.46442779133805834&w=0.0007080832576286593&h=0.0006899036738441856"
+            }
+        ];
+        StartPage.tileLayout = [
+            {
+                "Name": "#combo0-icons",
+                "Visibility": [
+                    "box", 
+                    "box", 
+                    "box ex3", 
+                    "box ex3 ex4", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9"
+                ]
+            }, 
+            {
+                "Name": "#FeaturedTimelinesBlock-tiles",
+                "Visibility": [
+                    "box", 
+                    "box", 
+                    "box ex3", 
+                    "box ex3 ex4", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9"
+                ]
+            }, 
+            {
+                "Name": "#TwitterBlock-tiles",
+                "Visibility": [
+                    "box", 
+                    "box", 
+                    "box ex3", 
+                    "box ex3 ex4", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9", 
+                    "box ex3 ex4 ex6 ex9"
+                ]
+            }, 
+            {
+                "Name": "#FavoriteTimelinesBlock-tiles",
+                "Visibility": [
+                    "box", 
+                    "box", 
+                    "box ex3", 
+                    "box ex3 ex4", 
+                    "box ex3 ex4 ex6", 
+                    "box ex3 ex4 ex6"
+                ]
+            }, 
+            
+        ];
+        function resizeCrop($image, imageProps, isListView) {
+            var $startPage = $("#start-page");
+            var width = $image.parent().width();
+            var height = $image.parent().height();
+            if(isListView) {
+                width = $image.width();
+                height = $image.height();
+            }
+            if(!$startPage.is(":visible")) {
+                $startPage.show();
+                width = $image.width();
+                height = $image.height();
+                $startPage.hide();
+            }
+            var naturalHeight = imageProps.naturalHeight;
+            var naturalWidth = imageProps.naturalWidth;
+            var ratio = naturalWidth / naturalHeight;
+            var marginTop = 0;
+            var marginLeft = 0;
+            if(naturalWidth > naturalHeight) {
+                $image.height(height);
+                $image.width(height * ratio);
+                marginLeft = ($image.width() - width) / 2;
+            } else if(naturalWidth < naturalHeight) {
+                $image.width(width);
+                $image.height(width / ratio);
+                marginTop = ($image.height() - height) / 2;
+            } else {
+                $image.width(width);
+                $image.height(height);
+            }
+            $image.css({
+                "margin-top": -marginTop + "px",
+                "margin-left": -marginLeft + "px"
+            });
+        }
+        function cloneTileTemplate(template, target, idx) {
+            for(var i = 0; i < target[idx].Visibility.length; i++) {
+                var o = $(template).clone(true, true).appendTo(target[idx].Name);
+                o.attr("class", target[idx].Visibility[i]);
+                o.attr("id", "t" + idx + "i" + i);
+                $("#t" + idx + "i" + i + " .boxInner .tile-photo img").attr("src", StartPage.tileData[i].Thumbnail).attr("alt", StartPage.tileData[i].Title);
+                $("#t" + idx + "i" + i + " .boxInner .tile-meta .tile-meta-title").text(StartPage.tileData[i].Title);
+                $("#t" + idx + "i" + i + " .boxInner .tile-meta .tile-meta-author").text(StartPage.tileData[i].Author);
+            }
+        }
+        StartPage.cloneTileTemplate = cloneTileTemplate;
+        function cloneListTemplate(template, target, idx) {
+            for(var i = 0; i < StartPage.tileData.length; i++) {
+                var o = $(template).clone(true, true).appendTo(target);
+                o.attr("id", "l" + idx + "i" + i);
+                $("#l" + idx + "i" + i + " .li-title a").attr("href", StartPage.tileData[i].URL);
+                $("#l" + idx + "i" + i + " .li-title a").text(StartPage.tileData[i].Title);
+                $("#l" + idx + "i" + i + " .li-author").text(StartPage.tileData[i].Author);
+                $("#l" + idx + "i" + i + " .li-icon").text(StartPage.tileData[i].Thumbnail);
+            }
+        }
+        StartPage.cloneListTemplate = cloneListTemplate;
+        function cloneTweetTemplate(template, target, idx) {
+            for(var i = 0; i < target[idx].Visibility.length; i++) {
+                var o = $(template).clone(true, true).appendTo(target[idx].Name);
+                o.attr("class", target[idx].Visibility[i]);
+                o.attr("id", "m" + idx + "i" + i);
+                $("#m" + idx + "i" + i + " .boxInner .tweet-meta .tweet-meta-text").dotdotdot({
+                    watch: "window"
+                });
+            }
+        }
+        StartPage.cloneTweetTemplate = cloneTweetTemplate;
+        function PlayIntroTour() {
+            var introTour = CZ.Tours.tours[0];
+            if(typeof introTour === "undefined") {
+                return false;
+            }
+            CZ.Tours.tourCaptionForm = new CZ.UI.FormTourCaption(CZ.Tours.tourCaptionFormContainer, {
+                activationSource: $(".tour-icon"),
+                navButton: ".cz-form-nav",
+                closeButton: ".cz-tour-form-close-btn > .cz-form-btn",
+                titleTextblock: ".cz-tour-form-title",
+                contentContainer: ".cz-form-content",
+                minButton: ".cz-tour-form-min-btn > .cz-form-btn",
+                captionTextarea: ".cz-form-tour-caption",
+                tourPlayerContainer: ".cz-form-tour-player",
+                bookmarksCount: ".cz-form-tour-bookmarks-count",
+                narrationToggle: ".cz-toggle-narration",
+                context: introTour
+            });
+            CZ.Tours.tourCaptionForm.show();
+            CZ.Tours.activateTour(introTour, undefined);
+        }
+        StartPage.PlayIntroTour = PlayIntroTour;
+        function listFlip(name) {
+            if('block' != document.getElementById(name + '-list').style.display) {
+                document.getElementById(name + '-list').style.display = 'block';
+                document.getElementById(name + '-tiles').style.display = 'none';
+                $("#" + name).find(".list-view-icon").addClass("active");
+            } else {
+                document.getElementById(name + '-list').style.display = 'none';
+                document.getElementById(name + '-tiles').style.display = 'block';
+                $("#" + name).find(".list-view-icon").removeClass("active");
+                $(window).resize();
+            }
+        }
+        StartPage.listFlip = listFlip;
+        function fillFeaturedTimelines(timelines) {
+            var $template = $("#template-tile .box");
+            var layout = CZ.StartPage.tileLayout[1];
+            for(var i = 0, len = Math.min(layout.Visibility.length, timelines.length); i < len; i++) {
+                var timeline = timelines[i];
+                var timelineUrl = timeline.TimelineUrl;
+                var $startPage = $("#start-page");
+                var $tile = $template.clone(true, true);
+                var $tileImage = $tile.find(".boxInner .tile-photo img");
+                var $tileTitle = $tile.find(".boxInner .tile-meta .tile-meta-title");
+                var $tileAuthor = $tile.find(".boxInner .tile-meta .tile-meta-author");
+                $tile.appendTo(layout.Name).addClass(layout.Visibility[i]).attr("id", "featured" + i).click(timelineUrl, function (event) {
+                    window.location.href = event.data;
+                    hide();
+                }).invisible();
+                $tileImage.load($tile, function (event) {
+                    var $this = $(this);
+                    var imageProps = event.target || event.srcElement;
+                    resizeCrop($this, imageProps);
+                    $(window).resize({
+                        $image: $this,
+                        imageProps: imageProps
+                    }, function (event) {
+                        resizeCrop(event.data.$image, event.data.imageProps);
+                    });
+                    setTimeout(function () {
+                        event.data.visible();
+                    }, 0);
+                }).attr({
+                    src: timeline.ImageUrl,
+                    alt: timeline.Title
+                });
+                $tileTitle.text(timeline.Title.trim() || "No title :(");
+                $tileAuthor.text(timeline.Author);
+            }
+        }
+        StartPage.fillFeaturedTimelines = fillFeaturedTimelines;
+        function fillFeaturedTimelinesList(timelines) {
+            var template = "#template-timeline-list .timeline-list-item";
+            var target = "#FeaturedTimelinesBlock-list";
+            for(var i = 0; i < Math.min(StartPage.tileData.length, timelines.length); i++) {
+                var timeline = timelines[i];
+                var timelineUrl = timeline.TimelineUrl;
+                var $timelineListItem = $(template).clone(true, true).appendTo(target);
+                var $timelineListItemImage = $timelineListItem.find(".timeline-li-image img");
+                var Name = "featured-list-elem" + i;
+                var idx = 1;
+                $timelineListItem.attr("id", "l" + idx + "i" + i);
+                $timelineListItem.click(timelineUrl, function (event) {
+                    window.location.href = event.data;
+                    hide();
+                });
+                $timelineListItem.attr("data-title", timeline.Title.trim() || "No title :(");
+                $timelineListItem.attr("data-author", timeline.Author);
+                $timelineListItemImage.load($timelineListItemImage, function (event) {
+                    var $this = $(this);
+                    var imageProps = event.target || event.srcElement;
+                    resizeCrop($this, imageProps, true);
+                }).attr({
+                    src: timeline.ImageUrl,
+                    alt: timeline.Title
+                });
+            }
+        }
+        StartPage.fillFeaturedTimelinesList = fillFeaturedTimelinesList;
+        function fillFavoriteTimelines(timelines) {
+            var $template = $("#template-tile .box");
+            var layout = CZ.StartPage.tileLayout[3];
+            for(var i = 0, len = Math.min(layout.Visibility.length, timelines.length); i < len; i++) {
+                var timeline = timelines[i];
+                var timelineUrl = timeline.TimelineUrl;
+                var $startPage = $("#start-page");
+                var $tile = $template.clone(true, true);
+                var $tileImage = $tile.find(".boxInner .tile-photo img");
+                var $tileTitle = $tile.find(".boxInner .tile-meta .tile-meta-title");
+                var $tileAuthor = $tile.find(".boxInner .tile-meta .tile-meta-author");
+                $tile.appendTo(layout.Name).addClass(layout.Visibility[i]).attr("id", "favorite" + i).click(timelineUrl, function (event) {
+                    window.location.href = event.data;
+                    hide();
+                }).invisible();
+                $tileImage.load($tile, function (event) {
+                    var $this = $(this);
+                    var imageProps = event.target || event.srcElement;
+                    resizeCrop($this, imageProps);
+                    $(window).resize({
+                        $image: $this,
+                        imageProps: imageProps
+                    }, function (event) {
+                        resizeCrop(event.data.$image, event.data.imageProps);
+                    });
+                    setTimeout(function () {
+                        event.data.visible();
+                    }, 0);
+                }).attr({
+                    src: timeline.ImageUrl,
+                    alt: timeline.Title
+                });
+                $tileTitle.text(timeline.Title.trim() || "No title :(");
+                $tileAuthor.text(timeline.Author);
+            }
+        }
+        StartPage.fillFavoriteTimelines = fillFavoriteTimelines;
+        function fillFavoriteTimelinesList(timelines) {
+            var template = "#template-timeline-list .timeline-list-item";
+            var target = "#FavoriteTimelinesBlock-list";
+            for(var i = 0; i < Math.min(StartPage.tileData.length, timelines.length); i++) {
+                var timeline = timelines[i];
+                var timelineUrl = timeline.TimelineUrl;
+                var $timelineListItem = $(template).clone(true, true).appendTo(target);
+                var $timelineListItemImage = $timelineListItem.find(".timeline-li-image img");
+                var Name = "favorite-list-elem" + i;
+                var idx = 1;
+                $timelineListItem.attr("id", "lfav" + idx + "i" + i);
+                $timelineListItem.click(timelineUrl, function (event) {
+                    window.location.href = event.data;
+                    hide();
+                });
+                $timelineListItem.attr("data-title", timeline.Title.trim() || "No title :(");
+                $timelineListItem.attr("data-author", timeline.Author);
+                $timelineListItemImage.load($timelineListItemImage, function (event) {
+                    var $this = $(this);
+                    var imageProps = event.target || event.srcElement;
+                    resizeCrop($this, imageProps, true);
+                }).attr({
+                    src: timeline.ImageUrl,
+                    alt: timeline.Title
+                });
+            }
+        }
+        StartPage.fillFavoriteTimelinesList = fillFavoriteTimelinesList;
+        function TwitterLayout(target, idx) {
+            var ListTemplate = "#template-tweet-list .tweet-list-item";
+            var ListElem = "#TwitterBlock-list";
+            CZ.Service.getRecentTweets().done(function (response) {
+                for(var i = 0, len = response.d.length; i < len; ++i) {
+                    var tweet = response.d[i];
+                    var text = tweet.Text;
+                    var fullname = tweet.User.Name;
+                    var username = tweet.User.ScreenName;
+                    var photo = tweet.User.ProfileImageUrl;
+                    var time = tweet.CreatedDate;
+                    var myDate = new Date(time.match(/\d+/)[0] * 1);
+                    var convertedDate = myDate.toLocaleTimeString() + "; " + myDate.getDate();
+                    var tweetUsernameLink = "https://twitter.com/" + username;
+                    var tweetLink = "https://twitter.com/" + username + "/statuses/" + tweet.IdStr;
+                    var $tweetTile = $("#m" + idx + "i" + i);
+                    var $tweetTileMeta = $tweetTile.find(".boxInner .tweet-meta");
+                    var $tileMessage = $tweetTileMeta.find(".tweet-meta-text");
+                    var $tileFullname = $tweetTileMeta.find(".tweet-meta-title");
+                    var $tileUsername = $tweetTileMeta.find(".tweet-meta-author");
+                    var $tileAvatar = $tweetTileMeta.find(".tweet-avatar-icon");
+                    var $tileDate = $tweetTileMeta.find(".tile-meta-time");
+                    convertedDate += "." + myDate.getMonth() + "." + myDate.getFullYear();
+                    $tweetTileMeta.invisible(true);
+                    $tileAvatar.load($tweetTileMeta, function (event) {
+                        event.data.visible();
+                    });
+                    text = text.replace(/(@([A-Za-z0-9_]+))/gi, "<a class='tweet-message-link' target='blank' \
+                        href='https://twitter.com/$2'>$1</a>");
+                    text = text.replace(/(#([A-Za-z0-9_]+))/gi, "<a class='tweet-message-link' target='blank' \
+                        href='https://twitter.com/search?q=$2&f=realtime'>$1</a>");
+                    $tileMessage.html(text).attr("href", tweetLink);
+                    $tileUsername.text("@" + username).attr("href", tweetUsernameLink);
+                    $tileFullname.text(fullname);
+                    $tileDate.text(convertedDate);
+                    $tileAvatar.attr("src", photo);
+                    var $tweetListItem = $(ListTemplate).clone(true, true).appendTo(ListElem);
+                    var $listItemMessage = $tweetListItem.find(".tweet-li-message");
+                    var $listItemUsername = $tweetListItem.find(".tweet-li-header .tweet-li-username");
+                    var $listItemFullname = $tweetListItem.find(".tweet-li-header .tweet-li-fullname");
+                    var $listItemAvatar = $tweetListItem.find(".tweet-li-header .tweet-li-avatar");
+                    var $listItemDate = $tweetListItem.find(".tweet-li-footer .tweet-li-date");
+                    $tweetListItem.attr("id", "l" + idx + "i" + i);
+                    $listItemMessage.html(text).attr("href", tweetLink);
+                    $listItemUsername.text("@" + username).attr("href", tweetUsernameLink);
+                    $listItemFullname.text(fullname);
+                    $listItemDate.text(convertedDate);
+                    $listItemAvatar.attr("src", photo);
+                }
+            });
+        }
+        StartPage.TwitterLayout = TwitterLayout;
+        function show() {
+            var $disabledButtons = $(".tour-icon, .timeSeries-icon, .edit-icon");
+            $(".home-icon").addClass("active");
+            $disabledButtons.attr("disabled", "disabled").each(function (i, el) {
+                var events = $(el).data("events");
+                $(el).data("onclick", events && events.click && events.click[0]);
+            }).off();
+            $(".header-regimes").invisible();
+            $(".header-breadcrumbs").invisible();
+            CZ.HomePageViewModel.closeAllForms();
+            $("#start-page").fadeIn();
+        }
+        StartPage.show = show;
+        function hide() {
+            var $disabledButtons = $(".tour-icon, .timeSeries-icon, .edit-icon");
+            $(".home-icon").removeClass("active");
+            $disabledButtons.removeAttr("disabled").each(function (i, el) {
+                $(el).click($(el).data("onclick"));
+            });
+            if(_isRegimesVisible) {
+                $(".header-regimes").visible();
+            }
+            $(".header-breadcrumbs").visible();
+            $("#start-page").fadeOut();
+        }
+        StartPage.hide = hide;
+        function initialize() {
+            _isRegimesVisible = $(".header-regimes").is(":visible");
+            $(".home-icon").click(function () {
+                if($("#start-page").is(":visible")) {
+                    hide();
+                } else {
+                    show();
+                }
+            });
+            CZ.Service.getUserFeatured().done(function (response) {
+                var timelines = response ? response.reverse() : [];
+                fillFeaturedTimelines(timelines);
+                fillFeaturedTimelinesList(timelines);
+            });
+            CZ.Service.getUserFavorites().then(function (response) {
+                var timelines = response ? response.reverse() : [];
+                timelines.forEach(function (timeline) {
+                    CZ.Settings.favoriteTimelines.push(timeline.TimelineUrl.split("/").pop().slice(1));
+                });
+                if(timelines.length === 0) {
+                    $("#FavoriteTimelinesBlock .list-view-icon").hide();
+                    $("#FavoriteTimelinesBlock-tiles").text("You don't have any favorite timelines yet." + "Click star icon of the timeline you like to save it as favorite.");
+                } else {
+                    fillFavoriteTimelines(timelines);
+                    fillFavoriteTimelinesList(timelines);
+                }
+            }, function (error) {
+                console.log("[ERROR] getUserFavorites");
+            });
+            CZ.StartPage.cloneTweetTemplate("#template-tweet .box", CZ.StartPage.tileLayout, 2);
+            CZ.StartPage.TwitterLayout(CZ.StartPage.tileLayout, 2);
+            var hash = CZ.UrlNav.getURL().hash;
+            if(!hash.path || hash.path === "/t" + CZ.Settings.guidEmpty && !hash.params) {
+                show();
+            }
+        }
+        StartPage.initialize = initialize;
+    })(CZ.StartPage || (CZ.StartPage = {}));
+    var StartPage = CZ.StartPage;
+})(CZ || (CZ = {}));
+(function ($) {
+    $.fn.showError = function (msg, className, props) {
+        className = className || "error";
+        props = props || {
+        };
+        $.extend(true, props, {
+            class: className,
+            text: msg
+        });
+        var $errorTemplate = $("<div></div>", props).attr("error", true);
+        var $allErrors = $();
+        var $errorElems = $();
+        var result = this.each(function () {
+            var $this = $(this);
+            var isDiv;
+            var $div;
+            var $error;
+            if(!$this.data("error")) {
+                isDiv = $this.is("div");
+                $div = isDiv ? $this : $this.closest("div");
+                $error = $errorTemplate.clone();
+                $allErrors = $allErrors.add($error);
+                $errorElems = $errorElems.add($this);
+                $errorElems = $errorElems.add($div);
+                $errorElems = $errorElems.add($div.children());
+                $this.data("error", $error);
+                if(isDiv) {
+                    $div.append($error);
+                } else {
+                    $this.after($error);
+                }
+            }
+        });
+        if($allErrors.length > 0) {
+            $errorElems.addClass(className);
+            $allErrors.slideDown(CZ.Settings.errorMessageSlideDuration);
+        }
+        return result;
+    };
+    $.fn.hideError = function () {
+        var $allErrors = $();
+        var $errorElems = $();
+        var classes = "";
+        var result = this.each(function () {
+            var $this = $(this);
+            var $error = $this.data("error");
+            var $div;
+            var className;
+            if($error) {
+                $div = $this.is("div") ? $this : $this.closest("div");
+                className = $error.attr("class");
+                if(classes.split(" ").indexOf(className) === -1) {
+                    classes += " " + className;
+                }
+                $allErrors = $allErrors.add($error);
+                $errorElems = $errorElems.add($this);
+                $errorElems = $errorElems.add($div);
+                $errorElems = $errorElems.add($div.children());
+            }
+        });
+        if($allErrors.length > 0) {
+            $allErrors.slideUp(CZ.Settings.errorMessageSlideDuration).promise().done(function () {
+                $allErrors.remove();
+                $errorElems.removeData("error");
+                $errorElems.removeClass(classes);
+            });
+        }
+        return result;
+    };
+})(jQuery);
+(function ($) {
+    $.fn.visible = function (noTransition) {
+        return this.each(function () {
+            var $this = $(this);
+            if(noTransition) {
+                $this.addClass("no-transition");
+            } else {
+                $this.removeClass("no-transition");
+            }
+            $this.css({
+                opacity: 1,
+                visibility: "visible"
+            });
+        });
+    };
+    $.fn.invisible = function (noTransition) {
+        return this.each(function () {
+            var $this = $(this);
+            if(noTransition) {
+                $this.addClass("no-transition");
+            } else {
+                $this.removeClass("no-transition");
+            }
+            $this.css({
+                opacity: 0,
+                visibility: "hidden"
+            });
+        });
+    };
+})(jQuery);
+var constants;
+var CZ;
+(function (CZ) {
     CZ.timeSeriesChart;
     CZ.leftDataSet;
     CZ.rightDataSet;
@@ -11366,7 +13468,13 @@ var CZ;
             "#toursList": "/ui/tourslist-form.html",
             "$('<div><!--Tours list item --></div>')": "/ui/tour-listbox.html",
             "#timeSeriesContainer": "/ui/timeseries-graph-form.html",
-            "#timeSeriesDataForm": "/ui/timeseries-data-form.html"
+            "#timeSeriesDataForm": "/ui/timeseries-data-form.html",
+            "#message-window": "/ui/message-window.html",
+            "#header-search-form": "/ui/header-search-form.html",
+            "#header-session-expired-form": "/ui/header-session-expired-form.html",
+            "#tour-caption-form": "/ui/tour-caption-form.html",
+            "#mediapicker-form": "/ui/mediapicker-form.html",
+            "#start-page": "/ui/start-page.html"
         };
         (function (FeatureActivation) {
             FeatureActivation._map = [];
@@ -11378,8 +13486,11 @@ var CZ;
             FeatureActivation.RootCollection = 2;
             FeatureActivation._map[3] = "NotRootCollection";
             FeatureActivation.NotRootCollection = 3;
+            FeatureActivation._map[4] = "NotProduction";
+            FeatureActivation.NotProduction = 4;
         })(HomePageViewModel.FeatureActivation || (HomePageViewModel.FeatureActivation = {}));
         var FeatureActivation = HomePageViewModel.FeatureActivation;
+        HomePageViewModel.sessionForm;
         var _featureMap = [
             {
                 Name: "Login",
@@ -11398,8 +13509,13 @@ var CZ;
             }, 
             {
                 Name: "Authoring",
-                Activation: FeatureActivation.NotRootCollection,
+                Activation: FeatureActivation.Enabled,
                 JQueryReference: ".header-icon.edit-icon"
+            }, 
+            {
+                Name: "TourAuthoring",
+                Activation: FeatureActivation.Enabled,
+                JQueryReference: ".cz-form-create-tour"
             }, 
             {
                 Name: "WelcomeScreen",
@@ -11409,39 +13525,92 @@ var CZ;
             {
                 Name: "Regimes",
                 Activation: FeatureActivation.RootCollection,
-                JQueryReference: ".regime-link"
+                JQueryReference: ".header-regimes"
             }, 
             {
                 Name: "TimeSeries",
-                Activation: FeatureActivation.NotRootCollection,
-                JQueryReference: "#timeSeriesContainer"
+                Activation: FeatureActivation.Enabled
+            }, 
+            {
+                Name: "ManageCollections",
+                Activation: FeatureActivation.Disabled,
+                JQueryReference: "#collections_button"
+            }, 
+            {
+                Name: "BreadCrumbs",
+                Activation: FeatureActivation.Enabled,
+                JQueryReference: ".header-breadcrumbs"
+            }, 
+            {
+                Name: "Themes",
+                Activation: FeatureActivation.NotProduction
+            }, 
+            {
+                Name: "Skydrive",
+                Activation: FeatureActivation.Enabled
+            }, 
+            {
+                Name: "StartPage",
+                Activation: FeatureActivation.NotProduction,
+                JQueryReference: ".header-icon.home-icon"
             }, 
             
         ];
+        HomePageViewModel.rootCollection;
+        function UserCanEditCollection(profile) {
+            if(CZ.Service.superCollectionName && CZ.Service.superCollectionName.toLowerCase() === "sandbox") {
+                return true;
+            }
+            if(!profile || !profile.DisplayName || !CZ.Service.superCollectionName || profile.DisplayName.toLowerCase() !== CZ.Service.superCollectionName.toLowerCase()) {
+                return false;
+            }
+            return true;
+        }
         function InitializeToursUI(profile, forms) {
-            var allowEditing = IsFeatureEnabled(_featureMap, "Authoring") && (profile && profile != "" && profile.DisplayName === CZ.Service.superCollectionName);
+            CZ.Tours.tourCaptionFormContainer = forms[16];
+            var allowEditing = IsFeatureEnabled(_featureMap, "TourAuthoring") && UserCanEditCollection(profile);
+            var onTakeTour = function (tour) {
+                CZ.HomePageViewModel.closeAllForms();
+                CZ.Tours.tourCaptionForm = new CZ.UI.FormTourCaption(CZ.Tours.tourCaptionFormContainer, {
+                    activationSource: $(".tour-icon"),
+                    navButton: ".cz-form-nav",
+                    closeButton: ".cz-tour-form-close-btn > .cz-form-btn",
+                    titleTextblock: ".cz-tour-form-title",
+                    contentContainer: ".cz-form-content",
+                    minButton: ".cz-tour-form-min-btn > .cz-form-btn",
+                    captionTextarea: ".cz-form-tour-caption",
+                    tourPlayerContainer: ".cz-form-tour-player",
+                    bookmarksCount: ".cz-form-tour-bookmarks-count",
+                    narrationToggle: ".cz-toggle-narration",
+                    context: tour
+                });
+                CZ.Tours.tourCaptionForm.show();
+                CZ.Tours.removeActiveTour();
+                CZ.Tours.activateTour(tour, undefined);
+            };
             var onToursInitialized = function () {
-                CZ.Tours.initializeToursUI();
                 $("#tours_index").click(function () {
-                    CZ.Tours.removeActiveTour();
-                    var form = new CZ.UI.FormToursList(forms[9], {
-                        activationSource: $(this),
-                        navButton: ".cz-form-nav",
-                        closeButton: ".cz-form-close-btn > .cz-form-btn",
-                        titleTextblock: ".cz-form-title",
-                        tourTemplate: forms[10],
-                        tours: CZ.Tours.tours,
-                        takeTour: function (tour) {
-                            CZ.Tours.removeActiveTour();
-                            CZ.Tours.activateTour(tour, undefined);
-                        },
-                        editTour: allowEditing ? function (tour) {
-                            if(CZ.Authoring.showEditTourForm) {
-                                CZ.Authoring.showEditTourForm(tour);
-                            }
-                        } : null
-                    });
-                    form.show();
+                    var toursListForm = getFormById("#toursList");
+                    if(toursListForm.isFormVisible) {
+                        toursListForm.close();
+                    } else {
+                        closeAllForms();
+                        var form = new CZ.UI.FormToursList(forms[9], {
+                            activationSource: $(this),
+                            navButton: ".cz-form-nav",
+                            closeButton: ".cz-form-close-btn > .cz-form-btn",
+                            titleTextblock: ".cz-form-title",
+                            tourTemplate: forms[10],
+                            tours: CZ.Tours.tours,
+                            takeTour: onTakeTour,
+                            editTour: allowEditing ? function (tour) {
+                                if(CZ.Authoring.showEditTourForm) {
+                                    CZ.Authoring.showEditTourForm(tour);
+                                }
+                            } : null
+                        });
+                        form.show();
+                    }
                 });
             };
             if(CZ.Tours.tours) {
@@ -11468,7 +13637,15 @@ var CZ;
                 return c;
             })();
             $('.bubbleInfo').hide();
-            var canvasIsEmpty;
+            var url = CZ.UrlNav.getURL();
+            HomePageViewModel.rootCollection = url.superCollectionName === undefined;
+            CZ.Service.superCollectionName = url.superCollectionName;
+            CZ.Service.collectionName = url.collectionName;
+            CZ.Common.initialContent = url.content;
+            ApplyFeatureActivation();
+            CZ.Extensions.registerExtensions();
+            CZ.Media.SkyDriveMediaPicker.isEnabled = IsFeatureEnabled(_featureMap, "Skydrive");
+            CZ.Media.initialize();
             CZ.Common.initialize();
             CZ.UILoader.loadAll(_uiMap).done(function () {
                 var forms = arguments;
@@ -11492,11 +13669,6 @@ var CZ;
                         }
                     }
                 });
-                CZ.Service.getProfile().done(function (profile) {
-                    InitializeToursUI(profile, forms);
-                }).fail(function (err) {
-                    InitializeToursUI(null, forms);
-                });
                 $(".header-icon.edit-icon").click(function () {
                     var editForm = getFormById("#header-edit-form");
                     if(editForm === false) {
@@ -11511,6 +13683,7 @@ var CZ;
                             createTour: ".cz-form-create-tour"
                         });
                         form.show();
+                        ApplyFeatureActivation();
                     } else {
                         if(editForm.isFormVisible) {
                             editForm.close();
@@ -11520,7 +13693,48 @@ var CZ;
                         }
                     }
                 });
+                $(".header-icon.search-icon").click(function () {
+                    var searchForm = getFormById("#header-search-form");
+                    if(searchForm === false) {
+                        closeAllForms();
+                        var form = new CZ.UI.FormHeaderSearch(forms[14], {
+                            activationSource: $(this),
+                            navButton: ".cz-form-nav",
+                            closeButton: ".cz-form-close-btn > .cz-form-btn",
+                            titleTextblock: ".cz-form-title",
+                            searchTextbox: ".cz-form-search-input",
+                            searchResultsBox: ".cz-form-search-results",
+                            progressBar: ".cz-form-progress-bar",
+                            resultSections: ".cz-form-search-results > .cz-form-search-section",
+                            resultsCountTextblock: ".cz-form-search-results-count"
+                        });
+                        form.show();
+                    } else {
+                        if(searchForm.isFormVisible) {
+                            searchForm.close();
+                        } else {
+                            closeAllForms();
+                            searchForm.show();
+                        }
+                    }
+                });
                 CZ.Authoring.initialize(CZ.Common.vc, {
+                    showMessageWindow: function (message, title, onClose) {
+                        var wnd = new CZ.UI.MessageWindow(forms[13], message, title);
+                        if(onClose) {
+                            wnd.container.bind("close", function () {
+                                wnd.container.unbind("close", onClose);
+                                onClose();
+                            });
+                        }
+                        wnd.show();
+                    },
+                    hideMessageWindow: function () {
+                        var wnd = forms[13].data("form");
+                        if(wnd) {
+                            wnd.close();
+                        }
+                    },
                     showEditTourForm: function (tour) {
                         CZ.Tours.removeActiveTour();
                         var form = new CZ.UI.FormEditTour(forms[7], {
@@ -11539,7 +13753,25 @@ var CZ;
                         form.show();
                     },
                     showCreateTimelineForm: function (timeline) {
+                        CZ.Authoring.hideMessageWindow();
                         CZ.Authoring.mode = "createTimeline";
+                        var form = new CZ.UI.FormEditTimeline(forms[1], {
+                            activationSource: $(".header-icon.edit-icon"),
+                            navButton: ".cz-form-nav",
+                            closeButton: ".cz-form-close-btn > .cz-form-btn",
+                            titleTextblock: ".cz-form-title",
+                            startDate: ".cz-form-time-start",
+                            endDate: ".cz-form-time-end",
+                            saveButton: ".cz-form-save",
+                            deleteButton: ".cz-form-delete",
+                            titleInput: ".cz-form-item-title",
+                            errorMessage: "#error-edit-timeline",
+                            context: timeline
+                        });
+                        form.show();
+                    },
+                    showCreateRootTimelineForm: function (timeline) {
+                        CZ.Authoring.mode = "createRootTimeline";
                         var form = new CZ.UI.FormEditTimeline(forms[1], {
                             activationSource: $(".header-icon.edit-icon"),
                             navButton: ".cz-form-nav",
@@ -11572,6 +13804,7 @@ var CZ;
                         form.show();
                     },
                     showCreateExhibitForm: function (exhibit) {
+                        CZ.Authoring.hideMessageWindow();
                         var form = new CZ.UI.FormEditExhibit(forms[2], {
                             activationSource: $(".header-icon.edit-icon"),
                             navButton: ".cz-form-nav",
@@ -11622,6 +13855,7 @@ var CZ;
                             descriptionInput: ".cz-form-item-descr",
                             attributionInput: ".cz-form-item-attribution",
                             mediaTypeInput: ".cz-form-item-media-type",
+                            mediaListContainer: ".cz-form-medialist",
                             context: {
                                 exhibit: e,
                                 contentItem: ci
@@ -11630,9 +13864,46 @@ var CZ;
                         form.show(noAnimation);
                     }
                 });
-                if(canvasIsEmpty) {
-                    CZ.Authoring.showCreateTimelineForm(defaultRootTimeline);
-                }
+                HomePageViewModel.sessionForm = new CZ.UI.FormHeaderSessionExpired(forms[15], {
+                    activationSource: $("#header-session-expired-form"),
+                    navButton: ".cz-form-nav",
+                    closeButton: ".cz-form-close-btn > .cz-form-btn",
+                    titleTextblock: ".cz-form-title",
+                    titleInput: ".cz-form-item-title",
+                    context: "",
+                    sessionTimeSpan: "#session-time",
+                    sessionButton: "#session-button"
+                });
+                CZ.Service.getProfile().done(function (data) {
+                    if(data != "") {
+                        CZ.Settings.isAuthorized = true;
+                        CZ.Authoring.timer = setTimeout(function () {
+                            CZ.Authoring.showSessionForm();
+                        }, (CZ.Settings.sessionTime - 60) * 1000);
+                    }
+                    CZ.Authoring.isEnabled = UserCanEditCollection(data);
+                }).fail(function (error) {
+                    CZ.Authoring.isEnabled = UserCanEditCollection(null);
+                    CZ.Settings.isAuthorized = UserCanEditCollection(null);
+                }).always(function () {
+                    if(!CZ.Authoring.isEnabled && !CZ.Settings.isAuthorized) {
+                        $(".edit-icon").hide();
+                        $("#WelcomeBlock").attr("data-toggle", "show");
+                    } else {
+                        $("#FavoriteTimelinesBlock").attr("data-toggle", "show");
+                    }
+                    CZ.Common.loadData().then(function (response) {
+                        if(!response) {
+                            if(CZ.Authoring.isEnabled) {
+                                if(CZ.Authoring.showCreateRootTimelineForm) {
+                                    CZ.Authoring.showCreateRootTimelineForm(defaultRootTimeline);
+                                }
+                            } else {
+                                CZ.Authoring.showMessageWindow("Looks like this collection is empty. Come back later when author will fill it with content.", "Collection is empty :(");
+                            }
+                        }
+                    });
+                });
                 var profileForm = new CZ.UI.FormEditProfile(forms[5], {
                     activationSource: $("#login-panel"),
                     navButton: ".cz-form-nav",
@@ -11648,7 +13919,10 @@ var CZ;
                     profilePanel: "#profile-panel",
                     loginPanelLogin: "#profile-panel.auth-panel-login",
                     context: "",
-                    allowRedirect: IsFeatureEnabled(_featureMap, "Authoring")
+                    allowRedirect: IsFeatureEnabled(_featureMap, "Authoring"),
+                    collectionTheme: CZ.Settings.theme,
+                    collectionThemeInput: "#collection-theme",
+                    collectionThemeWrapper: IsFeatureEnabled(_featureMap, "Themes") ? "#collection-theme-wrapper" : null
                 });
                 var loginForm = new CZ.UI.FormLogin(forms[6], {
                     activationSource: $("#login-panel"),
@@ -11658,9 +13932,11 @@ var CZ;
                     titleInput: ".cz-form-item-title",
                     context: ""
                 });
-                $("#profile-panel").click(function () {
+                $("#profile-panel").click(function (event) {
+                    event.preventDefault();
                     if(!profileForm.isFormVisible) {
                         closeAllForms();
+                        profileForm.setTheme(CZ.Settings.theme);
                         profileForm.show();
                     } else {
                         profileForm.close();
@@ -11671,23 +13947,29 @@ var CZ;
                         if(data == "") {
                             $("#login-panel").show();
                         } else if(data != "" && data.DisplayName == null) {
+                            $("#login-panel").hide();
                             $("#profile-panel").show();
                             $("#profile-panel input#username").focus();
                             if(!profileForm.isFormVisible) {
                                 closeAllForms();
+                                profileForm.setTheme(CZ.Settings.theme);
                                 profileForm.show();
                             } else {
                                 profileForm.close();
                             }
                         } else {
+                            $("#login-panel").hide();
                             $("#profile-panel").show();
                             $(".auth-panel-login").html(data.DisplayName);
                         }
+                        InitializeToursUI(data, forms);
                     }).fail(function (error) {
                         $("#login-panel").show();
+                        InitializeToursUI(null, forms);
                     });
                 }
-                $("#login-panel").click(function () {
+                $("#login-panel").click(function (event) {
+                    event.preventDefault();
                     if(!loginForm.isFormVisible) {
                         closeAllForms();
                         loginForm.show();
@@ -11695,6 +13977,9 @@ var CZ;
                         loginForm.close();
                     }
                 });
+                if(IsFeatureEnabled(_featureMap, "StartPage")) {
+                    CZ.StartPage.initialize();
+                }
             });
             CZ.Service.getServiceInformation().then(function (response) {
                 CZ.Settings.contentItemThumbnailBaseUri = response.thumbnailsPath;
@@ -11702,113 +13987,23 @@ var CZ;
                 CZ.Settings.signinUrlGoogle = response.signinUrlGoogle;
                 CZ.Settings.signinUrlYahoo = response.signinUrlYahoo;
             });
-            var url = CZ.UrlNav.getURL();
-            var rootCollection = url.superCollectionName === undefined;
-            CZ.Service.superCollectionName = url.superCollectionName;
-            CZ.Service.collectionName = url.collectionName;
-            CZ.Common.initialContent = url.content;
-            if(rootCollection) {
-                $('#timeSeries_button').hide();
-            } else {
-                $('#timeSeries_button').show();
+            CZ.Settings.applyTheme(null);
+            if(CZ.Service.superCollectionName) {
+                CZ.Service.getCollections(CZ.Service.superCollectionName).then(function (response) {
+                    $(response).each(function (index) {
+                        if(response[index] && response[index].Title.toLowerCase() === CZ.Service.collectionName.toLowerCase()) {
+                            CZ.Settings.applyTheme(response[index].theme);
+                        }
+                    });
+                });
             }
-            $('#search_button').mouseup(CZ.Search.onSearchClicked);
-            $('#human_rect').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.humanityVisible);
-            });
-            $('#prehuman_rect').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.prehistoryVisible);
-            });
-            $('#life_rect').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.lifeVisible);
-            });
-            $('#earth_rect').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.earthVisible);
-            });
-            $('#cosmos_rect').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.cosmosVisible);
-            });
-            $('#humanBookmark').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.humanityVisible);
-            });
-            $('#prehistoryBookmark').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.prehistoryVisible);
-            });
-            $('#lifeBookmark').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.lifeVisible);
-            });
-            $('#earthBookmark').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.earthVisible);
-            });
-            $('#cosmosBookmark').click(function () {
-                CZ.Search.navigateToBookmark(CZ.Common.cosmosVisible);
-            });
             $('#breadcrumbs-nav-left').click(CZ.BreadCrumbs.breadCrumbNavLeft);
             $('#breadcrumbs-nav-right').click(CZ.BreadCrumbs.breadCrumbNavRight);
-            $('#tour_prev').mouseout(function () {
-                CZ.Common.toggleOffImage('tour_prev');
-            }).mouseover(function () {
-                CZ.Common.toggleOnImage('tour_prev');
-            }).click(CZ.Tours.tourPrev);
-            $('#tour_playpause').mouseout(function () {
-                CZ.Common.toggleOffImage('tour_playpause');
-            }).mouseover(function () {
-                CZ.Common.toggleOnImage('tour_playpause');
-            }).click(CZ.Tours.tourPlayPause);
-            $('#tour_next').mouseout(function () {
-                CZ.Common.toggleOffImage('tour_next');
-            }).mouseover(function () {
-                CZ.Common.toggleOnImage('tour_next');
-            }).click(CZ.Tours.tourNext);
-            $('#tour_exit').mouseout(function () {
-                CZ.Common.toggleOffImage('tour_exit');
-            }).mouseover(function () {
-                CZ.Common.toggleOnImage('tour_exit');
-            }).click(CZ.Tours.tourAbort);
-            $('#tours-narration').click(CZ.Tours.onNarrationClick);
-            $('#bookmarksCollapse').click(CZ.Tours.onBookmarksCollapse);
             $('#biblCloseButton').mouseout(function () {
                 CZ.Common.toggleOffImage('biblCloseButton', 'png');
             }).mouseover(function () {
                 CZ.Common.toggleOnImage('biblCloseButton', 'png');
             });
-            $('#welcomeScreenCloseButton').mouseover(function () {
-                CZ.Common.toggleOnImage('welcomeScreenCloseButton', 'png');
-            }).mouseout(function () {
-                CZ.Common.toggleOffImage('welcomeScreenCloseButton', 'png');
-            }).click(CZ.Common.startExploring);
-            $('#welcomeScreenStartButton').click(CZ.Common.startExploring);
-            var wlcmScrnCookie = CZ.Common.getCookie("welcomeScreenDisallowed");
-            if(wlcmScrnCookie != null) {
-                CZ.Common.hideWelcomeScreen();
-            } else {
-                $("#welcomeScreenOut").click(function (e) {
-                    e.stopPropagation();
-                });
-                $("#welcomeScreenBack").click(function () {
-                    CZ.Common.startExploring();
-                });
-            }
-            for(var idxFeature = 0; idxFeature < _featureMap.length; idxFeature++) {
-                var enabled = true;
-                var feature = _featureMap[idxFeature];
-                if(feature.Activation === FeatureActivation.Disabled) {
-                    enabled = false;
-                }
-                if(feature.Activation === FeatureActivation.NotRootCollection && rootCollection) {
-                    enabled = false;
-                }
-                if(feature.Activation === FeatureActivation.RootCollection && !rootCollection) {
-                    enabled = false;
-                }
-                _featureMap[idxFeature].IsEnabled = enabled;
-                if(!enabled) {
-                    $(feature.JQueryReference).css("display", "none");
-                }
-            }
-            if(!rootCollection) {
-                CZ.Authoring.isEnabled = true;
-            }
             if(navigator.userAgent.match(/(iPhone|iPod|iPad)/)) {
                 document.addEventListener('touchmove', function (e) {
                     e.preventDefault();
@@ -11826,22 +14021,15 @@ var CZ;
             if(window.location.hash) {
                 CZ.Common.startHash = window.location.hash;
             }
-            CZ.Common.loadData().then(function (response) {
-                if(!response) {
-                    canvasIsEmpty = true;
-                    if(CZ.Authoring.showCreateTimelineForm) {
-                        CZ.Authoring.showCreateTimelineForm(defaultRootTimeline);
-                    }
-                }
-            });
             CZ.Search.initializeSearch();
             CZ.Bibliography.initializeBibliography();
             var canvasGestures = CZ.Gestures.getGesturesStream(CZ.Common.vc);
             var axisGestures = CZ.Gestures.applyAxisBehavior(CZ.Gestures.getGesturesStream(CZ.Common.ax));
-            var jointGesturesStream = canvasGestures.Merge(axisGestures);
+            var timeSeriesGestures = CZ.Gestures.getPanPinGesturesStream($("#timeSeriesContainer"));
+            var jointGesturesStream = canvasGestures.Merge(axisGestures.Merge(timeSeriesGestures));
             CZ.Common.controller = new CZ.ViewportController.ViewportController2(function (visible) {
                 var vp = CZ.Common.vc.virtualCanvas("getViewport");
-                var markerPos = CZ.Common.axis.MarkerPosition();
+                var markerPos = CZ.Common.axis.markerPosition;
                 var oldMarkerPosInScreen = vp.pointVirtualToScreen(markerPos, 0).x;
                 CZ.Common.vc.virtualCanvas("setVisible", visible, CZ.Common.controller.activeAnimation);
                 CZ.Common.updateAxis(CZ.Common.vc, CZ.Common.ax);
@@ -11852,7 +14040,7 @@ var CZ;
                 }
                 var hoveredInfodot = CZ.Common.vc.virtualCanvas("getHoveredInfodot");
                 var actAni = CZ.Common.controller.activeAnimation != undefined;
-                if(actAni && !hoveredInfodot.id) {
+                if(actAni) {
                     var newMarkerPos = vp.pointScreenToVirtual(oldMarkerPosInScreen, 0).x;
                     CZ.Common.updateMarker();
                 }
@@ -11976,11 +14164,12 @@ var CZ;
         function closeAllForms() {
             $('.cz-major-form').each(function (i, f) {
                 var form = $(f).data('form');
-                if(form) {
+                if(form && form.isFormVisible === true) {
                     form.close();
                 }
             });
         }
+        HomePageViewModel.closeAllForms = closeAllForms;
         function getFormById(name) {
             var form = $(name).data("form");
             if(form) {
@@ -11989,6 +14178,7 @@ var CZ;
                 return false;
             }
         }
+        HomePageViewModel.getFormById = getFormById;
         function showTimeSeriesChart() {
             $('#timeSeriesContainer').height('30%');
             $('#timeSeriesContainer').show();
@@ -12024,10 +14214,33 @@ var CZ;
                 CZ.timeSeriesChart.clearLegend("left");
                 CZ.timeSeriesChart.clearLegend("right");
                 var chartHeader = "TimeSeries Chart";
+                if(CZ.rightDataSet !== undefined || CZ.leftDataSet !== undefined) {
+                    CZ.timeSeriesChart.drawVerticalGridLines(leftCSS, rightCSS, leftPlot, rightPlot);
+                }
+                var screenWidthForLegend = rightCSS - leftCSS;
+                if(CZ.rightDataSet !== undefined && CZ.leftDataSet !== undefined) {
+                    screenWidthForLegend /= 2;
+                }
+                var isLegendVisible = CZ.timeSeriesChart.checkLegendVisibility(screenWidthForLegend);
                 if(CZ.leftDataSet !== undefined) {
                     var padding = CZ.leftDataSet.getVerticalPadding() + 10;
-                    CZ.timeSeriesChart.drawDataSet(CZ.leftDataSet, leftCSS, rightCSS, padding, leftPlot, rightPlot);
-                    CZ.timeSeriesChart.drawAxis(leftCSS, rightCSS, CZ.leftDataSet.series[0].appearanceSettings.yMin, CZ.leftDataSet.series[0].appearanceSettings.yMax, {
+                    var plotBottom = Number.MAX_VALUE;
+                    var plotTop = Number.MIN_VALUE;
+                    CZ.leftDataSet.series.forEach(function (seria) {
+                        if(seria.appearanceSettings !== undefined && seria.appearanceSettings.yMin !== undefined && seria.appearanceSettings.yMin < plotBottom) {
+                            plotBottom = seria.appearanceSettings.yMin;
+                        }
+                        if(seria.appearanceSettings !== undefined && seria.appearanceSettings.yMax !== undefined && seria.appearanceSettings.yMax > plotTop) {
+                            plotTop = seria.appearanceSettings.yMax;
+                        }
+                    });
+                    if((plotTop - plotBottom) === 0) {
+                        var absY = Math.max(0.1, Math.abs(plotBottom));
+                        var offsetConstant = 0.01;
+                        plotTop += absY * offsetConstant;
+                        plotBottom -= absY * offsetConstant;
+                    }
+                    var axisAppearence = {
                         labelCount: 4,
                         tickLength: 10,
                         majorTickThickness: 1,
@@ -12035,16 +14248,37 @@ var CZ;
                         axisLocation: 'left',
                         font: '16px Calibri',
                         verticalPadding: padding
-                    });
-                    for(var i = 0; i < CZ.leftDataSet.series.length; i++) {
-                        CZ.timeSeriesChart.addLegendRecord("left", CZ.leftDataSet.series[i].appearanceSettings.stroke, CZ.leftDataSet.series[i].appearanceSettings.name);
+                    };
+                    var tickForDraw = CZ.timeSeriesChart.generateAxisParameters(leftCSS, rightCSS, plotBottom, plotTop, axisAppearence);
+                    CZ.timeSeriesChart.drawHorizontalGridLines(tickForDraw, axisAppearence);
+                    CZ.timeSeriesChart.drawDataSet(CZ.leftDataSet, leftCSS, rightCSS, padding, leftPlot, rightPlot, plotTop, plotBottom);
+                    CZ.timeSeriesChart.drawAxis(tickForDraw, axisAppearence);
+                    if(isLegendVisible) {
+                        for(var i = 0; i < CZ.leftDataSet.series.length; i++) {
+                            CZ.timeSeriesChart.addLegendRecord("left", CZ.leftDataSet.series[i].appearanceSettings.stroke, CZ.leftDataSet.series[i].appearanceSettings.name);
+                        }
                     }
                     chartHeader += " (" + CZ.leftDataSet.name;
                 }
                 if(CZ.rightDataSet !== undefined) {
                     var padding = CZ.rightDataSet.getVerticalPadding() + 10;
-                    CZ.timeSeriesChart.drawDataSet(CZ.rightDataSet, leftCSS, rightCSS, padding, leftPlot, rightPlot);
-                    CZ.timeSeriesChart.drawAxis(rightCSS, leftCSS, CZ.rightDataSet.series[0].appearanceSettings.yMin, CZ.rightDataSet.series[0].appearanceSettings.yMax, {
+                    var plotBottom = Number.MAX_VALUE;
+                    var plotTop = Number.MIN_VALUE;
+                    CZ.rightDataSet.series.forEach(function (seria) {
+                        if(seria.appearanceSettings !== undefined && seria.appearanceSettings.yMin !== undefined && seria.appearanceSettings.yMin < plotBottom) {
+                            plotBottom = seria.appearanceSettings.yMin;
+                        }
+                        if(seria.appearanceSettings !== undefined && seria.appearanceSettings.yMax !== undefined && seria.appearanceSettings.yMax > plotTop) {
+                            plotTop = seria.appearanceSettings.yMax;
+                        }
+                    });
+                    if((plotTop - plotBottom) === 0) {
+                        var absY = Math.max(0.1, Math.abs(plotBottom));
+                        var offsetConstant = 0.01;
+                        plotTop += absY * offsetConstant;
+                        plotBottom -= absY * offsetConstant;
+                    }
+                    var axisAppearence = {
                         labelCount: 4,
                         tickLength: 10,
                         majorTickThickness: 1,
@@ -12052,22 +14286,54 @@ var CZ;
                         axisLocation: 'right',
                         font: '16px Calibri',
                         verticalPadding: padding
-                    });
-                    for(var i = 0; i < CZ.rightDataSet.series.length; i++) {
-                        CZ.timeSeriesChart.addLegendRecord("right", CZ.rightDataSet.series[i].appearanceSettings.stroke, CZ.rightDataSet.series[i].appearanceSettings.name);
+                    };
+                    var tickForDraw = CZ.timeSeriesChart.generateAxisParameters(rightCSS, leftCSS, plotBottom, plotTop, axisAppearence);
+                    CZ.timeSeriesChart.drawHorizontalGridLines(tickForDraw, axisAppearence);
+                    CZ.timeSeriesChart.drawDataSet(CZ.rightDataSet, leftCSS, rightCSS, padding, leftPlot, rightPlot, plotTop, plotBottom);
+                    CZ.timeSeriesChart.drawAxis(tickForDraw, axisAppearence);
+                    if(isLegendVisible) {
+                        for(var i = 0; i < CZ.rightDataSet.series.length; i++) {
+                            CZ.timeSeriesChart.addLegendRecord("right", CZ.rightDataSet.series[i].appearanceSettings.stroke, CZ.rightDataSet.series[i].appearanceSettings.name);
+                        }
                     }
                     var str = chartHeader.indexOf("(") > 0 ? ", " : " (";
                     chartHeader += str + CZ.rightDataSet.name + ")";
                 } else {
                     chartHeader += ")";
                 }
-                if(CZ.rightDataSet !== undefined || CZ.leftDataSet !== undefined) {
-                    CZ.timeSeriesChart.drawVerticalGridLines(leftCSS, rightCSS, leftPlot, rightPlot);
-                }
                 $("#timeSeriesChartHeader").text(chartHeader);
             }
         }
         HomePageViewModel.updateTimeSeriesChart = updateTimeSeriesChart;
+        function ApplyFeatureActivation() {
+            for(var idxFeature = 0; idxFeature < _featureMap.length; idxFeature++) {
+                var feature = _featureMap[idxFeature];
+                if(feature.IsEnabled === undefined) {
+                    var enabled = true;
+                    if(feature.Activation === FeatureActivation.Disabled) {
+                        enabled = false;
+                    }
+                    if(feature.Activation === FeatureActivation.NotRootCollection && HomePageViewModel.rootCollection) {
+                        enabled = false;
+                    }
+                    if(feature.Activation === FeatureActivation.RootCollection && !HomePageViewModel.rootCollection) {
+                        enabled = false;
+                    }
+                    if(feature.Activation === FeatureActivation.NotProduction && (!constants || constants.environment === "Production")) {
+                        enabled = false;
+                    }
+                    _featureMap[idxFeature].IsEnabled = enabled;
+                }
+                if(feature.JQueryReference) {
+                    if(!_featureMap[idxFeature].IsEnabled) {
+                        $(feature.JQueryReference).css("display", "none");
+                    } else if(!_featureMap[idxFeature].HasBeenActivated) {
+                        _featureMap[idxFeature].HasBeenActivated = true;
+                        $(feature.JQueryReference).css("display", "block");
+                    }
+                }
+            }
+        }
     })(CZ.HomePageViewModel || (CZ.HomePageViewModel = {}));
     var HomePageViewModel = CZ.HomePageViewModel;
 })(CZ || (CZ = {}));

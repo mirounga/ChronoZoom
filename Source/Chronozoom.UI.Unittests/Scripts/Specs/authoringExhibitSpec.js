@@ -1,5 +1,8 @@
 ﻿/// <reference path="../../../Chronozoom.UI/scripts/authoring.js" />
 /// <reference path="../../../Chronozoom.UI/scripts/dates.js" />
+/// <reference path="../../../Chronozoom.UI/scripts/settings.js" />
+/// <reference path='../../../Chronozoom.UI/scripts/external/jquery-1.7.2.min.js'/>
+/// <reference path="../../../Chronozoom.UI/scripts/service.js" />
 
 describe("CZ.Authoring Exhibit part", function() {
     var alertMessage;
@@ -156,18 +159,20 @@ describe("CZ.Authoring Exhibit part", function() {
             });
 
 
-            it("parentTineline.y > exhibit.y", function() {
-                var exhibit = {
-                    height: 548000080.4979726,
-                    type: "infodot",
-                    width: 548000080.4979726,
-                    x: -7123999034.518987,
-                    y: parentTineline.y - 1,
-                    infodotDescription: { date: -6849998996.27 }
-                };
-                parentTineline.children = [exhibit];
-                expect(authoring.checkExhibitIntersections(parentTineline, exhibit, true)).toBe(false);
-            });
+            // this is no longer actual
+            // 
+            //it("parentTineline.y > exhibit.y", function() {
+            //    var exhibit = {
+            //        height: 548000080.4979726,
+            //        type: "infodot",
+            //        width: 548000080.4979726,
+            //        x: -7123999034.518987,
+            //        y: parentTineline.y - 1,
+            //        infodotDescription: { date: -6849998996.27 }
+            //    };
+            //    parentTineline.children = [exhibit];
+            //    expect(authoring.checkExhibitIntersections(parentTineline, exhibit, true)).toBe(false);
+            //});
 
             it("parentTineline.x + parentTineline.width < exhibit.infodotDescription.date", function() {
                 var exhibit = {

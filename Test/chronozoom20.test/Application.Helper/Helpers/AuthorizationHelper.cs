@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
-using System.Xml;
+using System.Runtime.Serialization.Json;
+using System.Text;
 using Application.Driver;
 using Application.Helper.Entities;
 using Application.Helper.UserActions;
@@ -21,40 +22,52 @@ namespace Application.Helper.Helpers
             Logger.Log("->");
         }
 
+        public void AuthenticateAsExistedGoogleUser()
+        {
+            Logger.Log("<-");
+            LoginToAcsProvider("chronozoomer@gmail.com");
+            Logger.Log("->");
+        }
+
         public void AuthenticateAsGoogleUser()
         {
             Logger.Log("<-");
-            var user = new User { Type = UserType.Google };
-            OpenIdentityProviderPage(user);
-            LoginUser(user);
+            var user = new User { Login = "chronozoomtest@gmail.com" };
+            LoginToAcsProvider(user);
             Logger.Log("->");
         }
 
         public void AuthenticateAsYahooUser()
         {
             Logger.Log("<-");
-            var user = new User { Type = UserType.Yahoo };
-            OpenIdentityProviderPage(user);
-            LoginUser(user);
+            var user = new User { Login = "chronozoom@yahoo.com" };
+            LoginToAcsProvider(user);
             Logger.Log("->");
         }
 
         public void AuthenticateAsMicrosoftUser()
         {
             Logger.Log("<-");
-            var user = new User { Type = UserType.Microsoft };
-            OpenIdentityProviderPage(user);
-            LoginUser(user);
+            var user = new User { Login = "chronozoom@outlook.com" };
+            LoginToAcsProvider(user);
             Logger.Log("->");
         }
 
+        public void AuthenticateAsMicrosoftUserToSkyDrive()
+        {
+            Logger.Log("<-");
+            var user = new User { Login = "chronozoom@outlook.com" };
+            FillUserCredentials(user);
+            LoginUser(user);
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
+        }
 
         public void Logout()
         {
             Logger.Log("<-");
             if (!IsElementDisplayed(By.Id("profile-form")))
             {
-                Click(By.Id("edit_profile_button"));
+                OpenEditProfileForm();
             }
             MoveToElementAndClick(By.Id("cz-form-logout"));
             Logger.Log("->");
@@ -84,7 +97,7 @@ namespace Application.Helper.Helpers
         public bool IsNewUserAuthenticated()
         {
             Logger.Log("<-");
-            WaitForElementIsDisplayed(By.XPath("//*[@id='profile-form']//*[@class='cz-form-content']"));
+            WaitForElementIsDisplayed(By.CssSelector("#profile-form>.cz-form-content"));
             bool result = IsUserAuthenticated();
             Logger.Log("-> result: " + result);
             return result;
@@ -116,77 +129,77 @@ namespace Application.Helper.Helpers
             }
         }
 
-        protected User FillUserCredentials(User user)
+        public void ClickOnUserName()
         {
-            var document = new XmlDocument();
-            document.Load(GetValidAcountsXmlPath());
-
-            switch (user.Type)
-            {
-                case UserType.Google:
-                    user.Login = document.SelectSingleNode("//Accounts/google/login").InnerText;
-                    user.Password = document.SelectSingleNode("//Accounts/google/password").InnerText;
-                    break;
-                case UserType.Microsoft:
-                    user.Login = document.SelectSingleNode("//Accounts/microsoft/login").InnerText;
-                    user.Password = document.SelectSingleNode("//Accounts/microsoft/password").InnerText;
-                    break;
-                case UserType.Yahoo:
-                    user.Login = document.SelectSingleNode("//Accounts/yahoo/login").InnerText;
-                    user.Password = document.SelectSingleNode("//Accounts/yahoo/password").InnerText;
-                    break;
-                default:
-                    throw new Exception("Can not find user credentials, user: " + user);
-            }
-
-            return user;
-        }
-
-        private void SetUserInfoAndSubmit(User user)
-        {
-            Logger.Log("<- user type: " + user.Type);
-
-            switch (user.Type)
-            {
-                case UserType.Google:
-                    TypeText(By.Id("Email"), user.Login);
-                    TypeText(By.Id("Passwd"), user.Password);
-                    Click(By.Id("signIn"));
-                    break;
-                case UserType.Yahoo:
-                    TypeText(By.Id("username"), user.Login);
-                    TypeText(By.Id("passwd"), user.Password);
-                    Click(By.Id(".save"));
-                    break;
-                case UserType.Microsoft:
-                    ClickElementAndType(By.Id("idDiv_PWD_UsernameExample"), user.Login);
-                    ClickElementAndType(By.Id("idDiv_PWD_PasswordExample"), user.Password);
-                    Click(By.XPath("//*[@id='idSIButton9']"));
-                    break;
-            }
+            Logger.Log("<-");
+            Click(By.ClassName("auth-panel-login"));
             Logger.Log("->");
         }
 
-        private string GetValidAcountsXmlPath()
+
+        public bool IsEditProfileFormDisplayed()
         {
-            var validFilePath = string.Empty;
-
-            const string accountsPathVsRun = @".\..\..\..\Application.Helper\Constants\Accounts.xml";
-            const string accountsPathConsoleRun = @".\..\..\..\..\Application.Helper\Constants\Accounts.xml";
-
-            if (File.Exists(accountsPathVsRun))
-                validFilePath = accountsPathVsRun;
-            if (File.Exists(accountsPathConsoleRun))
-                validFilePath = accountsPathConsoleRun;
-            if (string.IsNullOrEmpty(validFilePath))
-            {
-                throw new Exception("Cannot find Accounts.xml file");
-            }
-
-            return validFilePath;
+            Logger.Log("<-");
+            bool result = IsElementDisplayed(By.Id("profile-form"));
+            Logger.Log("-> result: " + result);
+            return result;
         }
 
-        private bool IsUserAuthenticated()
+
+        public void ProvideEmail(string email)
+        {
+            Logger.Log("<-");
+            OpenEditProfileForm();
+            SetEmail(email);
+            PressEnter(By.Id("email"));
+            AcceptAlert();
+        }
+
+        public bool IsAlertDispalyed()
+        {
+            return IsAlertPresented();
+        }
+
+        public bool IsUserNamePresented()
+        {
+            return IsElementExisted(By.ClassName("auth-panel-login"));
+        }
+
+        public void LogoutFromSkyDrive()
+        {
+            Logger.Log("<-");
+            OpenUrl("https://login.live.com/oauth20_logout.srf");
+            Logger.Log("->");
+        }
+
+        private void FillUserCredentials(User user)
+        {
+            IEnumerable<User> users = GetUsersFromJson();
+            if (users != null)
+                foreach (User userData in users)
+                {
+                    if (userData.Login == user.Login)
+                    {
+                        user.Password = userData.Password;
+                        user.Type = userData.Type;
+                        break;
+                    }
+                }
+        }
+        private IEnumerable<User> GetUsersFromJson()
+        {
+            StreamReader stream = new StreamReader("Accounts.json");
+            string text = stream.ReadToEnd();
+            stream.Close();
+            byte[] byteArray = Encoding.UTF8.GetBytes(text);
+            MemoryStream memoryStream = new MemoryStream(byteArray);
+            DataContractJsonSerializer serializer = new DataContractJsonSerializer(typeof(IEnumerable<User>));
+            IEnumerable<User> users = serializer.ReadObject(memoryStream) as IEnumerable<User>;
+            memoryStream.Close();
+            return users;
+        }
+
+       private bool IsUserAuthenticated()
         {
             Logger.Log("<-");
             var isLogoutPresent = IsElementDisplayed(By.Id("cz-form-logout"));
@@ -204,11 +217,35 @@ namespace Application.Helper.Helpers
         private void LoginUser(User user)
         {
             Logger.Log("<-");
-            FillUserCredentials(user);
             Logger.Log(user.ToString());
             SetUserInfoAndSubmit(user);
             AcceptSecurityWarning();
-            Logger.Log("->");
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
+        }
+
+        private void SetUserInfoAndSubmit(User user)
+        {
+            Logger.Log("<- user type: " + user.Type);
+
+            switch (user.Type)
+            {
+                case "google":
+                    TypeText(By.Id("Email"), user.Login);
+                    TypeText(By.Id("Passwd"), user.Password);
+                    Click(By.Id("signIn"));
+                    break;
+                case "yahoo":
+                    TypeText(By.Id("username"), user.Login);
+                    TypeText(By.Id("passwd"), user.Password);
+                    Click(By.Id(".save"));
+                    break;
+                case "microsoft":
+                    ClickElementAndType(By.Id("idDiv_PWD_UsernameExample"), user.Login);
+                    ClickElementAndType(By.Id("idDiv_PWD_PasswordExample"), user.Password);
+                    Click(By.Id("idSIButton9"));
+                    break;
+            }
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
         }
 
         private void OpenIdentityProviderPage(User user)
@@ -216,17 +253,56 @@ namespace Application.Helper.Helpers
             Logger.Log("<- user type: " + user.Type);
             switch (user.Type)
             {
-                case UserType.Google:
-                    Click(By.XPath("//*[@name='Google']"));
+                case "google":
+                    Click(By.CssSelector("[name='Google']"));
                     break;
-                case UserType.Yahoo:
-                    Click(By.XPath("//*[@name='Yahoo!']"));
+                case "yahoo":
+                    Click(By.CssSelector("[name='Yahoo!']"));
                     break;
-                case UserType.Microsoft:
-                    Click(By.XPath("//*[@name='Windows Live™ ID']"));
+                case "microsoft":
+                    Click(By.CssSelector("[name='Windows Live™ ID']"));
                     break;
+                default:
+                    throw new Exception("User type is not defined"); 
             }
             Logger.Log("->");
         }
+
+        private void OpenEditProfileForm()
+        {
+            Logger.Log("<-");
+            Click(By.Id("edit_profile_button"));
+            Logger.Log("->");
+        }
+
+        private void SetEmail(string email)
+        {
+            Logger.Log("<- email: " + email);
+            TypeText(By.Id("email"), email);
+            Logger.Log("->");
+        }
+
+        public void LogoutByUrl()
+        {
+            Logger.Log("<-");
+            OpenUrl(Configuration.BaseUrl + "/pages/logoff.aspx");
+            Logger.Log("->");
+        }
+
+        private void LoginToAcsProvider(string email)
+        {
+            var user = new User { Login = email };
+            LoginToAcsProvider(user);
+        }
+
+        private void LoginToAcsProvider(User user)
+        {
+            Logger.Log("<-");
+            FillUserCredentials(user);
+            OpenIdentityProviderPage(user);
+            LoginUser(user);
+            Logger.Log("->");
+        }
+
     }
 }

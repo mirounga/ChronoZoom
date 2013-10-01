@@ -3,6 +3,7 @@
 /// <reference path='bibliography.ts'/>
 /// <reference path='urlnav.ts'/>
 /// <reference path='cz.ts'/>
+/// <reference path='extensions/extensions.ts'/>
 
 declare var Seadragon: any;
 
@@ -150,6 +151,13 @@ module CZ {
             return addChild(element, new SeadragonImage(element.vc, /*parent*/element, layerid, id, imgSrc, vx, vy, vw, vh, z, onload), false);
         };
 
+        export var addExtension = function (extensionName, element, layerid, id, vx, vy, vw, vh, z, imgSrc, onload?) {
+            if (vw <= 0 || vh <= 0) throw "Extension size must be positive";
+            var initializer = CZ.Extensions.getInitializer(extensionName);
+
+            return addChild(element, initializer(element.vc, /*parent*/element, layerid, id, imgSrc, vx, vy, vw, vh, z, onload), false);
+        };
+
         /* Adds a video as a child of the given virtual canvas element.
         @param element   (CanvasElement) Parent element, whose children is to be new element.
         @param layerid   (any type) id of the layer for this element
@@ -194,6 +202,37 @@ module CZ {
         var addAudio = function (element, layerid, id, audioSource, vx, vy, vw, vh, z) {
             return addChild(element, new CanvasAudioItem(element.vc, layerid, id, audioSource, vx, vy, vw, vh, z), false);
         };
+
+        /* Adds a embed skydrive document as a child of the given virtual canvas element.
+        @param element   (CanvasElement) Parent element, whose children is to be new element.
+        @param layerid   (any type) id of the layer for this element
+        @param id   (any type) id of an element
+        @param embedSource (string) embed document code
+        @param vx   (number) x of left top corner in virtual space
+        @param vy   (number) y of left top corner in virtual space
+        @param vw   (number) width of a bounding box in virtual space
+        @param vh   (number) height of a bounding box in virtual space
+        @param z (number) z-index
+        */
+        export var addSkydriveDocument = function (element, layerid, id, embededSource, vx, vy, vw, vh, z) {
+            return addChild(element, new CanvasSkydriveDocumentItem(element.vc, layerid, id, embededSource, vx, vy, vw, vh, z), false);
+        };
+
+        /* Adds a embed skydrive image as a child of the given virtual canvas element.
+        @param element   (CanvasElement) Parent element, whose children is to be new element.
+        @param layerid   (any type) id of the layer for this element
+        @param id   (any type) id of an element
+        @param embedSource (string) embed image code. pattern: {url} {width} {height}
+        @param vx   (number) x of left top corner in virtual space
+        @param vy   (number) y of left top corner in virtual space
+        @param vw   (number) width of a bounding box in virtual space
+        @param vh   (number) height of a bounding box in virtual space
+        @param z (number) z-index
+        */
+        export var addSkydriveImage = function (element, layerid, id, embededSource, vx, vy, vw, vh, z) {
+            return addChild(element, new CanvasSkydriveImageItem(element.vc, layerid, id, embededSource, vx, vy, vw, vh, z), false);
+        };
+
 
         /*  Adds a text element as a child of the given virtual canvas element.
         @param element   (CanvasElement) Parent element, whose children is to be new element.
@@ -764,7 +803,7 @@ module CZ {
             var width = timelineinfo.timeEnd - timelineinfo.timeStart;
 
             var headerSize = timelineinfo.titleRect ? timelineinfo.titleRect.height : CZ.Settings.timelineHeaderSize * timelineinfo.height;
-            var headerWidth = timelineinfo.titleRect && CZ.Authoring.isEnabled ? timelineinfo.titleRect.width : 0;
+            var headerWidth = timelineinfo.titleRect && (CZ.Authoring.isEnabled || CZ.Settings.isAuthorized) ? timelineinfo.titleRect.width : 0;
             var marginLeft = timelineinfo.titleRect ? timelineinfo.titleRect.marginLeft : CZ.Settings.timelineHeaderMargin * timelineinfo.height; // size of left and top margins (e.g. if timeline is for 100 years, relative margin timelineHeaderMargin=0.05, then absolute margin is 5 years).
             var marginTop = timelineinfo.titleRect ? timelineinfo.titleRect.marginTop : (1 - CZ.Settings.timelineHeaderMargin) * timelineinfo.height - headerSize;
             var baseline = timelineinfo.top + marginTop + headerSize / 2.0;
@@ -779,7 +818,12 @@ module CZ {
             this.title = this.titleObject.text;
             this.regime = timelineinfo.regime;
             this.settings.gradientOpacity = 0;
-            this.settings.gradientFillStyle = timelineinfo.gradientFillStyle || timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+
+            if (CZ.Settings.timelineGradientFillStyle) {
+                this.settings.gradientFillStyle = CZ.Settings.timelineGradientFillStyle;
+            } else {
+                this.settings.gradientFillStyle = timelineinfo.gradientFillStyle || timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+            }
             //this.opacity = timelineinfo.opacity;
 
             this.reactsOnMouse = true;
@@ -808,7 +852,7 @@ module CZ {
                 this.settings.strokeStyle = CZ.Settings.timelineHoveredBoxBorderColor;
                 this.settings.lineWidth = CZ.Settings.timelineHoveredLineWidth;
                 this.titleObject.settings.fillStyle = CZ.Settings.timelineHoveredHeaderFontColor;
-                this.settings.hoverAnimationDelta = 3 / 60.0;
+                this.settings.hoverAnimationDelta = CZ.Settings.timelineHoverAnimation;
                 this.vc.requestInvalidate();
 
                 //if title is not in visible region, try to eval its screenFontSize using 
@@ -877,7 +921,7 @@ module CZ {
                 this.settings.strokeStyle = timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
                 this.settings.lineWidth = CZ.Settings.timelineLineWidth;
                 this.titleObject.settings.fillStyle = CZ.Settings.timelineHeaderFontColor;
-                this.settings.hoverAnimationDelta = -3 / 60.0;
+                this.settings.hoverAnimationDelta = -CZ.Settings.timelineHoverAnimation;;
                 this.vc.requestInvalidate();
             };
 
@@ -902,17 +946,76 @@ module CZ {
                 //rendering itself
                 this.base_render(ctx, visibleBox, viewport2d, size_p, opacity);
 
-                //initialize edit button if it isn't root collection and titleObject was already initialized
+                // initialize add favorite button if user is authorized
+                if (CZ.Settings.isAuthorized === true && typeof this.favoriteBtn === "undefined" && this.titleObject.width !== 0) {
+                    var btnX = CZ.Authoring.isEnabled ? this.x + this.width - 1.8 * this.titleObject.height : this.x + this.width - 1.0 * this.titleObject.height;
+                    var btnY = this.titleObject.y + 0.15 * this.titleObject.height;
+
+                    this.favoriteBtn = addImage(this,
+                        layerid,
+                        id + "__favorite",
+                        btnX,
+                        btnY,
+                        0.7 * this.titleObject.height,
+                        0.7 * this.titleObject.height,
+                        "/images/star.svg");
+                    this.favoriteBtn.reactsOnMouse = true;
+
+                    this.favoriteBtn.onmouseclick = function () {
+                        if (CZ.Settings.favoriteTimelines.indexOf(this.parent.guid) !== -1) {
+                            CZ.Service.deleteUserFavorite(this.parent.guid).then(success => {
+                                CZ.Authoring.showMessageWindow(
+                                    "Timeline '" + this.parent.title + "' was removed from your favorite timelines.",
+                                    "Timeline removed from favorites"
+                                );
+                            },
+                            error => {
+                                console.log("[ERROR] /deleteUserFavorite with guid " + this.parent.guid + " failed.");
+                            });
+                            CZ.Settings.favoriteTimelines.splice(CZ.Settings.favoriteTimelines.indexOf(this.parent.guid), 1);                            
+                        }
+                        else {
+                            CZ.Service.putUserFavorite(this.parent.guid).then(success => {
+                                CZ.Settings.favoriteTimelines.push(this.parent.guid); CZ.Authoring.showMessageWindow(
+                                        "Timeline '" + this.parent.title + "' was added to your favorite timelines.",
+                                        "Favorite timeline added"
+                                    );
+                            },
+                            error => {
+                                console.log("[ERROR] /putUserFavorite with guid + " + this.parent.guid + " failed.");
+                            });
+                        }
+                        return true;
+                    }
+
+                    this.favoriteBtn.onmousehover = function () {
+                        this.parent.settings.strokeStyle = "yellow";
+                    }
+
+                    this.favoriteBtn.onmouseunhover = function () {
+                        this.parent.settings.strokeStyle = timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineBorderColor;
+                    }
+
+                    // remove event handlers to prevent their stacking
+                    this.favoriteBtn.onRemove = function () {
+                        this.onmousehover = undefined;
+                        this.onmouseunhover = undefined;
+                        this.onmouseclick = undefined;
+                    }
+                }
+
+                // initialize edit button if it isn't root collection and titleObject was already initialized
                 if (CZ.Authoring.isEnabled && typeof this.editButton === "undefined" && this.titleObject.width !== 0) {
                     this.editButton = addImage(this, layerid, id + "__edit", this.x + this.width - 1.15 * this.titleObject.height, this.titleObject.y,
                         this.titleObject.height, this.titleObject.height, "/images/edit.svg");
                     this.editButton.reactsOnMouse = true;
 
                     this.editButton.onmouseclick = function () {
-                        CZ.Authoring.isActive = true;
-                        CZ.Authoring.mode = "editTimeline";
-                        CZ.Authoring.selectedTimeline = this.parent;
-
+                        if (CZ.Common.vc.virtualCanvas("getHoveredInfodot").x == undefined) {
+                            CZ.Authoring.isActive = true;
+                            CZ.Authoring.mode = "editTimeline";
+                            CZ.Authoring.selectedTimeline = this.parent;
+                        }
                         return true;
                     }
 
@@ -1131,7 +1234,6 @@ module CZ {
                             var mlines = this.text.split('\n');
                             var textHeight = 0;
                             var lines = [];
-
                             for (var il = 0; il < mlines.length; il++) {
                                 var words = mlines[il].split(' ');
                                 var lineWidth = 0;
@@ -1153,11 +1255,20 @@ module CZ {
                                         else currentLine += ' ' + words[iw];
                                         lineWidth = newWidth;
                                     }
+                                    var NewWordWidth;
+                                    if ((words.length == 1) && (wsize.width > size_p.x)) {
+                                        var NewWordWidth = wsize.width;
+                                        while (NewWordWidth > size_p.x) {
+                                                fontSize /= 1.5;
+                                                NewWordWidth /= 1.5;
+                                            }
+                                    }
                                 }
                                 lines.push(currentLine);
                                 textHeight += fontSize * k;
                             }
 
+                            
                             if (textHeight > size_p.y) { // we're out of vertical limit
                                 fontSize /= 1.5;
                             } else {
@@ -1434,7 +1545,7 @@ module CZ {
         @param vh        (number)   height of in virtual space
         @param z         (number) z-index
         */
-        function CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z) {
+        export function CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z) {
             this.base = CanvasElement;
             this.base(vc, layerid, id, vx, vy, vw, vh);
 
@@ -1591,16 +1702,22 @@ module CZ {
         @param z            z-index
         */
         function CanvasPdfItem(vc, layerid, id, pdfSrc, vx, vy, vw, vh, z) {
+            var pdfViewer = "http://docs.google.com/viewer?url=";
             this.base = CanvasDomItem;
             this.base(vc, layerid, id, vx, vy, vw, vh, z);
 
             var elem = document.createElement('iframe');
             elem.setAttribute("id", id);
+
+            if (!pdfSrc.match("/^" + pdfViewer + "/")) {
+                pdfSrc = pdfViewer + pdfSrc;
+            }
             if (pdfSrc.indexOf('?') == -1)
-                pdfSrc += '?wmode=opaque';
+                pdfSrc += '?&embedded=true&wmode=opaque';
             else
-                pdfSrc += '&wmode=opaque';
+                pdfSrc += '&embedded=true&wmode=opaque';
             elem.setAttribute("src", pdfSrc);
+
             elem.setAttribute("visible", 'true');
             elem.setAttribute("controls", 'true');
 
@@ -1656,6 +1773,85 @@ module CZ {
             elem.setAttribute("visible", 'true');
             elem.setAttribute("controls", 'true');
             this.initializeContent(elem);
+
+            this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
+        }
+
+        /*Represents skydrive embed document
+        @param embedSrc     embed document source code
+        @param vx           x of left top corner in virtual space
+        @param vy           y of left top corner in virtual space
+        @param vw           width of in virtual space
+        @param vh           height of in virtual space
+        @param z            z-index
+        */
+        function CanvasSkydriveDocumentItem(vc, layerid, id, embededSrc, vx, vy, vw, vh, z) {
+            this.base = CanvasDomItem;
+            this.base(vc, layerid, id, vx, vy, vw, vh, z);
+            
+            var elem = document.createElement('iframe');
+            elem.setAttribute("id", id);
+            elem.setAttribute("src", embededSrc);
+            this.initializeContent(elem);
+            
+            this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
+        }
+
+        /*Represents skydrive embed image        
+        Image is scaled to fit entire container.
+        @param embedSrc     embed image source code. pattern: {url} {width} {height}
+        @param vx           x of left top corner in virtual space
+        @param vy           y of left top corner in virtual space
+        @param vw           width of in virtual space
+        @param vh           height of in virtual space
+        @param z            z-index
+        */
+        function CanvasSkydriveImageItem(vc, layerid, id, embededSrc, vx, vy, vw, vh, z) {
+            this.base = CanvasDomItem;
+            this.base(vc, layerid, id, vx, vy, vw, vh, z);
+
+            // parse src params
+            var srcData = embededSrc.split(" ");
+
+            var elem = document.createElement('iframe');
+            elem.setAttribute("id", id);
+            elem.setAttribute("src", srcData[0]);
+            elem.setAttribute("scrolling", "no");
+            elem.setAttribute("frameborder", "0");
+            this.initializeContent(elem);
+
+            this.render = function (ctx, visibleBox, viewport2d, size_p, opacity) {
+                if (!this.content) return;
+
+                var p = viewport2d.pointVirtualToScreen(this.x, this.y);
+                // p.x = p.x + 8; p.y = p.y + 8; // todo: properly position relative to VC and remove this offset
+
+                // parse base size of iframe
+                var width = parseFloat(srcData[1]);
+                var height = parseFloat(srcData[2]);
+
+                // calculate scale level
+                var scale = size_p.x / width;
+                if (height / width > size_p.y / size_p.x) {
+                    scale = size_p.y / height;
+                }
+
+                // position image in center of container
+                this.content.style.left = (p.x + size_p.x / 2) + 'px';
+                this.content.style.top = (p.y + size_p.y / 2) + 'px';
+                this.content.style.marginLeft = (-width / 2) + 'px';
+                this.content.style.marginTop = (-height / 2) + 'px';
+
+                this.content.style.width = width + 'px';
+                this.content.style.height = height + 'px';
+                this.content.style.opacity = opacity;
+                this.content.style.filter = 'alpha(opacity=' + (opacity * 100) + ')';
+
+                // scale iframe to fit entire container
+                this.content.style.webkitTransform = "scale(" + scale + ")";
+                this.content.style.msTransform = "scale(" + scale + ")";
+                this.content.style.MozTransform = "scale(" + scale + ")";
+            };
 
             this.prototype = new CanvasDomItem(vc, layerid, id, vx, vy, vw, vh, z);
         }
@@ -1791,7 +1987,7 @@ module CZ {
                                     width, timelineinfo.height, {
                                         strokeStyle: timelineinfo.strokeStyle ? timelineinfo.strokeStyle : CZ.Settings.timelineStrokeStyle,
                                         lineWidth: CZ.Settings.timelineLineWidth,
-                                        fillStyle: timelineinfo.fillStyle,
+                                        fillStyle: CZ.Settings.timelineColor ? CZ.Settings.timelineColor : timelineinfo.fillStyle,
                                         opacity: typeof timelineinfo.opacity !== 'undefined' ? timelineinfo.opacity : 1
                                     }, timelineinfo), true);
             return timeline;
@@ -1876,9 +2072,11 @@ module CZ {
                     var mediaID = id + "__media__";
                     var imageElem = null;
                     if (this.contentItem.mediaType.toLowerCase() === 'image' || this.contentItem.mediaType.toLowerCase() === 'picture') {
-                        imageElem = addSeadragonImage(container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex, this.contentItem.uri);
+                        imageElem = addImage(container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, this.contentItem.uri);
                     }
-                    else if (this.contentItem.mediaType.toLowerCase() === 'video') {
+                    else if (this.contentItem.mediaType.toLowerCase() === 'deepimage') {
+                        imageElem = addSeadragonImage(container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex, this.contentItem.uri);
+                    } else if (this.contentItem.mediaType.toLowerCase() === 'video') {
                         addVideo(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
                     }
                     else if (this.contentItem.mediaType.toLowerCase() === 'audio') {
@@ -1888,6 +2086,15 @@ module CZ {
                     }
                     else if (this.contentItem.mediaType.toLowerCase() === 'pdf') {
                         addPdf(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    }
+                    else if (this.contentItem.mediaType.toLowerCase() === 'skydrive-document') {
+                        addSkydriveDocument(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    }
+                    else if (this.contentItem.mediaType.toLowerCase() === 'skydrive-image') {
+                        addSkydriveImage(container, layerid, mediaID, this.contentItem.uri, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex);
+                    }
+                    else if (CZ.Extensions.mediaTypeIsExtension(contentItem.mediaType)) {
+                        addExtension(contentItem.mediaType, container, layerid, mediaID, vx + leftOffset, mediaTop, contentWidth, mediaHeight, CZ.Settings.mediaContentElementZIndex, this.contentItem.uri);
                     }
 
                     // Title
@@ -2029,8 +2236,18 @@ module CZ {
             this.opacity = typeof infodotDescription.opacity !== 'undefined' ? infodotDescription.opacity : 1;
 
             contentItems.sort(function (a, b) {
-                return a.order - b.order;
+                if (typeof a.order !== 'undefined' && typeof b.order === 'undefined') return -1;
+                else if (typeof a.order === 'undefined' && typeof b.order !== 'undefined') return 1;
+                else if (typeof a.order === 'undefined' && typeof b.order === 'undefined') return 0;
+                else if (a.order < b.order) return -1;
+                else if (a.order > b.order) return 1;
+                else return 0;
             });
+
+            // convert relative content item order to absolute position
+            for (var i = 0; i < contentItems.length; i++) {
+                contentItems[i].order = i;
+            }
 
             var vyc = this.newY + radv;
             var innerRad = radv - CZ.Settings.infoDotHoveredBorderWidth * radv;
@@ -2040,6 +2257,7 @@ module CZ {
 
             this.tooltipEnabled = true; // indicates whether tooltip is enabled for this infodot at this moment or not
             this.tooltipIsShown = false; // indicates whether tooltip is shown or not
+
 
             this.onmousehover = function (pv, e) {
                 this.vc.currentlyHoveredInfodot = this;
@@ -2083,8 +2301,7 @@ module CZ {
             };
 
             this.onmouseleave = function (e) {
-                this.isMouseIn = false
-
+                this.isMouseIn = false;
                 this.settings.strokeStyle = CZ.Settings.infoDotBorderColor;
                 this.settings.lineWidth = CZ.Settings.infoDotBorderWidth * radv;
                 this.vc.requestInvalidate();
@@ -2185,7 +2402,20 @@ module CZ {
 
                     if (infodotDescription && infodotDescription.title && infodotDescription.date) {
                         var exhibitDate = CZ.Dates.convertCoordinateToYear(infodotDescription.date);
-                        title = infodotDescription.title + '\n(' + exhibitDate.year + ' ' + exhibitDate.regime + ')';
+                        if ((exhibitDate.regime == "CE") || (exhibitDate.regime == "BCE")) {
+                            var date_number = Number(infodotDescription.date);
+                            var exhibitDate = CZ.Dates.convertCoordinateToYear(date_number);
+                            var exhibitYMD = CZ.Dates.getYMDFromCoordinate(date_number);
+                            date_number = Math.abs(date_number);
+                            if (date_number == Math.floor(date_number)) {
+                                title = infodotDescription.title + '\n(' + parseFloat((date_number).toFixed(2)) + ' ' + exhibitDate.regime + ')';
+                            } else {
+                                title = infodotDescription.title + '\n(' + exhibitYMD.year + "." + (exhibitYMD.month + 1) + "." + exhibitYMD.day + ' ' + exhibitDate.regime + ')';
+                            }
+                        } else {
+                            // Format year title with fixed precision
+                            title = infodotDescription.title + '\n(' + parseFloat(exhibitDate.year.toFixed(2)) + ' ' + exhibitDate.regime + ')';
+                        }
                     }
 
                     var infodotTitle = addText(contentItem, layerid, id + "__title", time - titleWidth / 2, titleTop, titleTop, titleHeight,
@@ -2210,8 +2440,8 @@ module CZ {
                             CZ.Authoring.isActive = true;
                             CZ.Authoring.mode = "editExhibit";
                             CZ.Authoring.selectedExhibit = infodot;
-
                             return true;
+                                
                         }
 
                         editButton.onmouseenter = function () {
@@ -2426,7 +2656,7 @@ module CZ {
             // build content items
             var vcitems = [];
 
-            for (var i = 0, len = Math.min(10, n); i < len; i++) {
+            for (var i = 0, len = Math.min(CZ.Settings.infodotMaxContentItemsCount, n); i < len; i++) {
                 var ci = contentItems[i];
                 if (i === 0) { // center
                     vcitems.push(new ContentItem(vc, layerid, ci.id, -_wc / 2 * rad + xc, -_hc / 2 * rad + yc, _wc * rad, _hc * rad, ci));

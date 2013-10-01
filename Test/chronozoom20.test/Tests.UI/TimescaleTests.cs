@@ -24,7 +24,6 @@ namespace Tests
         public static void ClassInitialize(TestContext testContext)
         {
             HomePageHelper.OpenPage();
-            WelcomeScreenHelper.CloseWelcomePopup();
         }
 
         [TestInitialize]
@@ -45,7 +44,6 @@ namespace Tests
             if (TestContext.CurrentTestOutcome != UnitTestOutcome.Passed && TestContext.CurrentTestOutcome != UnitTestOutcome.Inconclusive)
             {
                 HomePageHelper.OpenPage();
-                WelcomeScreenHelper.CloseWelcomePopup();
             }
         }
 
@@ -83,40 +81,17 @@ namespace Tests
         }
 
         [TestMethod]
-        public void Roman_History_TimeLine_Borders()
-        {
-            TimelineHelper.OpenHumanityTimeline();
-            TimelineHelper.OpenRomanHistoryTimeline();
-            const double expected = 942;
-            double leftBorder = TimescaleHelper.GetLeftBorderDate();
-            double rightBorder = TimescaleHelper.GetRightBorderDate();
-            Assert.AreEqual(expected, rightBorder - leftBorder);
-        }
-
-        [TestMethod]
-        public void Roman_History_TimeLine_Borders_Ages()
-        {
-            TimelineHelper.OpenHumanityTimeline();
-            TimelineHelper.OpenRomanHistoryTimeline();
-            const string leftBorderAge = "BCE";
-            const string righBorderAge = "CE";
-            string leftBorder = TimescaleHelper.GetLeftBorderDateAge();
-            string rightBorder = TimescaleHelper.GetRightBorderDateAge();
-            Assert.AreEqual(leftBorderAge, leftBorder);
-            Assert.AreEqual(righBorderAge, rightBorder);
-        }
-
-        [TestMethod]
         public void Mouse_Marker()
         {
             TimelineHelper.OpenHumanityTimeline();
+            HomePageHelper.MoveMouseToCenter();
             string mouseMarkerText = TimescaleHelper.GetMouseMarkerText();
+            HomePageHelper.MoveMouseToLeft();
+            string mouseMarkerLeftText = TimescaleHelper.GetMouseMarkerText();
+            Assert.AreNotEqual(mouseMarkerText, mouseMarkerLeftText);
             HomePageHelper.MoveMouseToCenter();
             string mouseMarkerCenterText = TimescaleHelper.GetMouseMarkerText();
-            Assert.AreNotEqual(mouseMarkerText, mouseMarkerCenterText);
-            HomePageHelper.MoveMouseToLeft();
-            mouseMarkerText = TimescaleHelper.GetMouseMarkerText();
-            Assert.AreNotEqual(mouseMarkerText, mouseMarkerCenterText);
+            Assert.AreNotEqual(mouseMarkerLeftText, mouseMarkerCenterText);
         }
     }
 }

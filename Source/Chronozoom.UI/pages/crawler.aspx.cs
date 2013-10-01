@@ -5,6 +5,8 @@ using System.Text.RegularExpressions;
 using System.Web;
 using System.Collections.ObjectModel;
 using Chronozoom.Entities;
+using System.Text;
+using System.Globalization;
 
 namespace Chronozoom.UI
 {
@@ -17,6 +19,16 @@ namespace Chronozoom.UI
             Uri uri = HttpContext.Current.Request.Url;
             return uri.Scheme + Uri.SchemeDelimiter + uri.Host + ":" + uri.Port;
         });
+
+        public static bool SearchEnabled()
+        {
+            if (ConfigurationManager.AppSettings["SearchEngineIndexing"] == "true")
+            {
+                return true;
+            }
+            return false;
+        }
+
 
         /// <summary>
         /// Parses the URL passed to the page to determine the SuperCollection.
@@ -39,7 +51,7 @@ namespace Chronozoom.UI
                 }
             }
 
-            return superCollection;
+            return superCollection.ToString().Split('/')[0];
         }
 
         /// <summary>
@@ -100,7 +112,9 @@ namespace Chronozoom.UI
                 guid = url.Segments[url.Segments.Length - 1];
             }
 
-            return guid;
+            if(IsGuid(guid))
+                return guid;
+            return RootTimelineId(url);
         }
 
         /// <summary>
@@ -125,12 +139,12 @@ namespace Chronozoom.UI
                 return null;
             }
 
-            return new Uri(_hostPath.Value + "/" + FriendlyUrl.FriendlyUrlEncode(superCollection) + FriendlyUrl.FriendlyUrlEncode(collection)+ "/");
+            return new Uri(_hostPath.Value + "/" + FriendlyUrl.FriendlyUrlEncode(superCollection) + "/" + FriendlyUrl.FriendlyUrlEncode(collection)+ "/");
         }
 
         public static string RootTimelineId(Uri collection)
         {
-            string root = "00000000-0000-0000-0000-000000000000";
+            string root = Guid.Empty.ToString();
 
             if (collection != null)
             {
@@ -138,7 +152,7 @@ namespace Chronozoom.UI
                 {
                     if (IsTimeline(collection.Segments[collection.Segments.Length - 1]))
                     {
-                        Timeline timeline = _storage.GetRootTimelines(_storage.GetCollectionFromGuid(Guid.Parse(collection.Segments[collection.Segments.Length - 1])));
+                        Timeline timeline = _storage.GetRootTimelines(_storage.GetCollectionFromTimeline(Guid.Parse(collection.Segments[collection.Segments.Length - 1])));
                         Guid rootGuid = timeline.Id;
                         if (Guid.Parse(root) != rootGuid)
                         {
@@ -183,6 +197,10 @@ namespace Chronozoom.UI
                             if (timeline != null)
                             {
                                 root = timeline.Id.ToString();
+                            }
+                            else
+                            {
+                                root = "";
                             }
                         }
                     }
@@ -277,6 +295,34 @@ namespace Chronozoom.UI
             {
                 return false;
             }
+        }
+
+        public static string GetTitle(Uri url)
+        {
+            StringBuilder title = new StringBuilder();
+
+            string urlGuid = UrlGuid(url);
+            
+            if(url != null && url.Segments.Length > 1 && IsGuid(url.Segments[url.Segments.Length - 1]))
+                if (IsTimeline(urlGuid)) { 
+                    title.Append(Timelines(urlGuid).Title + " - ");
+                } else if (IsExhibit(urlGuid)) {
+                    title.Append(Exhibits(urlGuid).Title + " - ");
+                } else if (IsContentItem(urlGuid)) {
+                    title.Append(ContentItems(urlGuid).Title + " - ");
+                }
+
+            title.Append("ChronoZoom");
+
+            if (!string.IsNullOrEmpty(UrlSuperCollection(url)))
+            {
+                if (UrlSuperCollection(url) != ConfigurationManager.AppSettings["DefaultSuperCollection"])
+                    title.Append(FriendlyUrl.FriendlyUrlDecode(" (" + UrlSuperCollection(url)) + ")");
+            }
+            else if (!string.IsNullOrEmpty(UrlCollection(url)))
+                title.Append(FriendlyUrl.FriendlyUrlDecode(" (" + UrlCollection(url)) + ")");
+
+            return title.ToString();
         }
 
         private static Regex isGuid =

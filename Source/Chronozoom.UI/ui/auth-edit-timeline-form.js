@@ -9,6 +9,7 @@ var CZ;
         var FormEditTimeline = (function (_super) {
             __extends(FormEditTimeline, _super);
             function FormEditTimeline(container, formInfo) {
+                var _this = this;
                         _super.call(this, container, formInfo);
                 this.saveButton = container.find(formInfo.saveButton);
                 this.deleteButton = container.find(formInfo.deleteButton);
@@ -19,10 +20,14 @@ var CZ;
                 this.timeline = formInfo.context;
                 this.saveButton.off();
                 this.deleteButton.off();
+                this.titleInput.focus(function () {
+                    _this.titleInput.hideError();
+                });
                 this.initialize();
             }
             FormEditTimeline.prototype.initialize = function () {
                 var _this = this;
+                this.saveButton.prop('disabled', false);
                 if(CZ.Authoring.mode === "createTimeline") {
                     this.deleteButton.hide();
                     this.titleTextblock.text("Create Timeline");
@@ -31,6 +36,11 @@ var CZ;
                     this.deleteButton.show();
                     this.titleTextblock.text("Edit Timeline");
                     this.saveButton.text("update timeline");
+                } else if(CZ.Authoring.mode === "createRootTimeline") {
+                    this.deleteButton.hide();
+                    this.closeButton.hide();
+                    this.titleTextblock.text("Create Root Timeline");
+                    this.saveButton.text("create timeline");
                 } else {
                     console.log("Unexpected authoring mode in timeline form.");
                     this.close();
@@ -49,15 +59,17 @@ var CZ;
                     var isDataValid = false;
                     isDataValid = CZ.Authoring.validateTimelineData(_this.startDate.getDate(), _this.endDate.getDate(), _this.titleInput.val());
                     if(!CZ.Authoring.isNotEmpty(_this.titleInput.val())) {
-                        _this.errorMessage.text('Title is empty');
-                    } else if(!CZ.Authoring.isIntervalPositive(_this.startDate.getDate(), _this.endDate.getDate())) {
-                        _this.errorMessage.text('Result interval is not positive');
+                        _this.titleInput.showError("Title can't be empty");
+                    }
+                    if(!CZ.Authoring.isIntervalPositive(_this.startDate.getDate(), _this.endDate.getDate())) {
+                        _this.errorMessage.text('Time interval should no less than one day');
                     }
                     if(!isDataValid) {
                         return;
                     } else {
                         _this.errorMessage.empty();
                         var self = _this;
+                        _this.saveButton.prop('disabled', true);
                         CZ.Authoring.updateTimeline(_this.timeline, {
                             title: _this.titleInput.val(),
                             start: _this.startDate.getDate(),
@@ -65,14 +77,22 @@ var CZ;
                         }).then(function (success) {
                             self.isCancel = false;
                             self.close();
+                            self.timeline.onmouseclick();
                         }, function (error) {
-                            alert("Unable to save changes. Please try again later.");
+                            if(error !== undefined && error !== null) {
+                                self.errorMessage.text(error).show().delay(7000).fadeOut();
+                            } else {
+                                self.errorMessage.text("Sorry, internal server error :(").show().delay(7000).fadeOut();
+                            }
                             console.log(error);
+                        }).always(function () {
+                            _this.saveButton.prop('disabled', false);
                         });
                     }
                 });
                 this.deleteButton.click(function (event) {
                     if(confirm("Are you sure want to delete timeline and all of its nested timelines and exhibits? Delete can't be undone!")) {
+                        var isDataValid = true;
                         CZ.Authoring.removeTimeline(_this.timeline);
                         _this.close();
                     }
@@ -96,6 +116,7 @@ var CZ;
                     complete: function () {
                         _this.endDate.remove();
                         _this.startDate.remove();
+                        _this.titleInput.hideError();
                     }
                 });
                 if(this.isCancel && CZ.Authoring.mode === "createTimeline") {

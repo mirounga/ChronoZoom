@@ -9,7 +9,7 @@ namespace Application.Helper.Helpers
         public void InitSearchWindow()
         {
             Logger.Log("<-");
-            Click(By.Id("search_button"));
+            Click(By.CssSelector(".header-icon.search-icon"));
             Logger.Log("->");
         }
 
@@ -39,28 +39,28 @@ namespace Application.Helper.Helpers
             TypeSearchString("Take our survey");
             WaitSearchProcess();
             NavigateToSearchResult("Take our Survey");
-            WaitNavigationToChronozoomProject();
+            WaitNavigationToTakeOurSurveyItem();
             Logger.Log("->");
         }
 
         private void TypeSearchString(string searchText)
         {
             Logger.Log("<- text: " + searchText);
-            TypeText(By.Id("searchTextBox"),searchText);
+            TypeText(By.CssSelector("input[type='search']"), searchText);
             Logger.Log("->");
         }
 
         private void WaitSearchProcess()
         {
             Logger.Log("<-");
-            WaitForElementIsNotDisplayed(By.Id("loadingImage"));
+            WaitForElementIsNotDisplayed(By.ClassName("cz-form-progress-bar"));
             Logger.Log("->");
         }
 
         private void NavigateToSearchResult(string name)
         {
             Logger.Log("<- result: " + name);
-            MoveToElementAndClick(By.XPath(string.Format("//*[@class='searchResult' and text()='{0}']",name)));
+            MoveToElementAndClick(By.XPath(string.Format("//*[@class='cz-form-search-result' and text()='{0}']", name)));
             Logger.Log("->");
         }
 
@@ -80,11 +80,12 @@ namespace Application.Helper.Helpers
             Logger.Log("->");
         }    
         
-        private void WaitNavigationToChronozoomProject()
+        private void WaitNavigationToTakeOurSurveyItem()
         {
             Logger.Log("<-");
             WaitForElementIsDisplayed(By.XPath("//*[@id='breadcrumbs-table']//*[text()='ChronoZoom Project']"));
             WaitAnimation();
+            WaitForElementIsDisplayed(By.XPath("//*[contains(text(),'ChronoZoom is made by the academic community')]"));
             Logger.Log("->");
         }
     }

@@ -14,7 +14,6 @@ namespace Tests
         public static void ClassInitialize(TestContext testContext)
         {
             HomePageHelper.OpenPage();
-            WelcomeScreenHelper.CloseWelcomePopup();
         }
 
         [TestInitialize]
@@ -22,7 +21,6 @@ namespace Tests
         {
             BrowserStateManager.RefreshState();
             HomePageHelper.OpenPage();
-            WelcomeScreenHelper.CloseWelcomePopup();
             AuthorizationHelper.OpenLoginPage();
         }
 
@@ -34,7 +32,7 @@ namespace Tests
         [TestCleanup]
         public void TestCleanup()
         {
-            AuthorizationHelper.DeleteAuthenticatedCookies();
+            AuthorizationHelper.LogoutByUrl();
             CreateScreenshotsIfTestFail(TestContext);
         }
 

@@ -9,14 +9,16 @@ module CZ {
             navButton: string;
             closeButton: string;
             titleTextblock: string;
+            contentContainer?: string;
         }
-        
+
         export class FormBase {
             public isFormVisible: bool;
             public activationSource: JQuery;
             public navButton: JQuery;
             public closeButton: JQuery;
             public titleTextblock: JQuery;
+            public contentContainer: JQuery;
 
             public container: JQuery;
             public prevForm: FormBase;
@@ -32,6 +34,7 @@ module CZ {
                 this.navButton = this.container.find(formInfo.navButton);
                 this.closeButton = this.container.find(formInfo.closeButton);
                 this.titleTextblock = this.container.find(formInfo.titleTextblock);
+                this.contentContainer = this.container.find(formInfo.contentContainer);
 
                 this.container.data("form", this);
 
@@ -62,6 +65,7 @@ module CZ {
                 this.isFormVisible = false;
                 this.container.data("form", undefined);
                 this.container.hide.apply(this.container, args);
+                this.container.trigger("close");
             }
 
             public back(): void {
@@ -82,7 +86,7 @@ module CZ {
                 super(container, formInfo);
 
                 this.saveButton = this.container.find(formInfo.saveButton);
-                
+
                 this.container.keypress(event => {
                     // trigger click on save button if ENTER was pressed
                     if (event.keyCode === 13) {

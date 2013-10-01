@@ -19,13 +19,18 @@ var CZ;
                 this.profilePanel = $(document.body).find(formInfo.profilePanel).first();
                 this.loginPanelLogin = $(document.body).find(formInfo.loginPanelLogin).first();
                 this.allowRedirect = formInfo.allowRedirect;
+                this.collectionTheme = formInfo.collectionTheme;
+                this.collectionThemeInput = container.find(formInfo.collectionThemeInput);
+                this.collectionThemeWrapper = container.find(formInfo.collectionThemeWrapper);
+                this.usernameInput.off("keypress");
+                this.emailInput.off("keypress");
                 this.initialize();
             }
             FormEditProfile.prototype.validEmail = function (e) {
                 if(String(e).length > 254) {
                     return false;
                 }
-                var filter = /^([\w^_]+(?:([-_\.\+][\w^_]+)|)|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
+                var filter = /^([\w^_]+((?:([-_.\+][\w^_]+)|))+|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
                 return String(e).search(filter) != -1;
             };
             FormEditProfile.prototype.validUsername = function (e) {
@@ -35,15 +40,20 @@ var CZ;
             FormEditProfile.prototype.initialize = function () {
                 var _this = this;
                 var profile = CZ.Service.getProfile();
+                if(this.collectionThemeWrapper) {
+                    this.collectionThemeWrapper.show();
+                }
                 profile.done(function (data) {
                     if(data.DisplayName != null) {
                         _this.usernameInput.val(data.DisplayName);
                         if(data.DisplayName != "") {
                             _this.usernameInput.prop('disabled', true);
+                        }
+                        _this.emailInput.val(data.Email);
+                        if(data.Email !== undefined && data.Email !== '' && data.Email != null) {
                             _this.agreeInput.attr('checked', true);
                             _this.agreeInput.prop('disabled', true);
                         }
-                        _this.emailInput.val(data.Email);
                     }
                 });
                 this.saveButton.click(function (event) {
@@ -52,27 +62,44 @@ var CZ;
                         alert("Provided incorrect username, \n'a-z', '0-9', '-', '_' - characters allowed only. ");
                         return;
                     }
-                    isValid = _this.validEmail(_this.emailInput.val());
-                    if(!isValid) {
-                        alert("Provided incorrect email address");
-                        return;
+                    var emailAddress = "";
+                    if(_this.emailInput.val()) {
+                        var emailIsValid = _this.validEmail(_this.emailInput.val());
+                        if(!emailIsValid) {
+                            alert("Provided incorrect email address");
+                            return;
+                        }
+                        var agreeTerms = _this.agreeInput.prop("checked");
+                        if(!agreeTerms) {
+                            alert("Please agree with provided terms");
+                            return;
+                        }
+                        emailAddress = _this.emailInput.val();
                     }
-                    isValid = _this.agreeInput.prop("checked");
-                    if(!isValid) {
-                        alert("Please agree with provided terms");
-                        return;
-                    }
+                    _this.collectionTheme = _this.collectionThemeInput.val();
                     CZ.Service.getProfile().done(function (curUser) {
                         CZ.Service.getProfile(_this.usernameInput.val()).done(function (getUser) {
                             if(curUser.DisplayName == null && typeof getUser.DisplayName != "undefined") {
                                 alert("Sorry, this username is already in use. Please try again.");
                                 return;
                             }
-                            CZ.Service.putProfile(_this.usernameInput.val(), _this.emailInput.val()).then(function (success) {
-                                if(_this.allowRedirect) {
-                                    window.location.assign("\\" + success);
+                            CZ.Service.putProfile(_this.usernameInput.val(), emailAddress).then(function (success) {
+                                if(_this.collectionTheme) {
+                                    CZ.Service.putCollection(_this.usernameInput.val(), _this.usernameInput.val(), {
+                                        theme: _this.collectionTheme
+                                    }).then(function () {
+                                        if(_this.allowRedirect) {
+                                            window.location.assign("/" + success);
+                                        } else {
+                                            _this.close();
+                                        }
+                                    });
                                 } else {
-                                    _this.close();
+                                    if(_this.allowRedirect) {
+                                        window.location.assign("/" + success);
+                                    } else {
+                                        _this.close();
+                                    }
                                 }
                             }, function (error) {
                                 alert("Unable to save changes. Please try again later.");
@@ -82,14 +109,16 @@ var CZ;
                     });
                 });
                 this.logoutButton.click(function (event) {
-                    return $.ajax({
-                        url: "/account/logout"
-                    }).done(function (data) {
-                        _this.profilePanel.hide();
-                        _this.loginPanel.show();
-                        _this.close();
-                    });
+                    WL.logout();
+                    window.location.assign("/pages/logoff.aspx");
                 });
+                var preventEnterKeyPress = function (event) {
+                    if(event.which == 13) {
+                        event.preventDefault();
+                    }
+                };
+                this.usernameInput.keypress(preventEnterKeyPress);
+                this.emailInput.keypress(preventEnterKeyPress);
             };
             FormEditProfile.prototype.show = function () {
                 _super.prototype.show.call(this, {
@@ -97,6 +126,7 @@ var CZ;
                     direction: "right",
                     duration: 500
                 });
+                this.collectionThemeInput.val(this.collectionTheme);
                 this.activationSource.addClass("active");
             };
             FormEditProfile.prototype.close = function () {
@@ -106,6 +136,9 @@ var CZ;
                     duration: 500
                 });
                 this.activationSource.removeClass("active");
+            };
+            FormEditProfile.prototype.setTheme = function (theme) {
+                this.collectionTheme = theme;
             };
             return FormEditProfile;
         })(CZ.UI.FormUpdateEntity);

@@ -30,69 +30,35 @@ var CZ;
             31
         ];
         function getCoordinateFromYMD(year, month, day) {
-            var sign = (year != 0) ? year / Math.abs(year) : 1;
-            var i = 0;
-            var coordinate = year;
-            var days = day;
-            var daysPerYear = isLeapYear(year) ? 366 : 365;
-            for(i = 0; i < month; i++) {
-                days += Dates.daysInMonth[i];
-                if((i === 1) && (isLeapYear(year))) {
-                    days++;
-                }
-            }
-            if((month > 1) && (isLeapYear(year))) {
-                coordinate += sign * days / daysPerYear;
-            } else {
-                coordinate += (sign >= 0) ? sign * days / daysPerYear : sign * (1 - days / daysPerYear);
-            }
-            if(year < 0) {
-                coordinate += 1;
-            }
-            coordinate -= 1 / daysPerYear;
-            return coordinate;
+            var sign = (year === -1) ? 1 : year / Math.abs(year), isLeap = isLeapYear(year), daysInYear = isLeap ? 366 : 365, coord = (year > -1) ? year : year + 1;
+            var sumDaysOfMonths = function (s, d, i) {
+                return s + (i < month) * d;
+            };
+            var days = Dates.daysInMonth.reduce(sumDaysOfMonths, +(isLeap && month > 1)) + day;
+            coord += (days - 1) / daysInYear;
+            coord = roundDecimal(coord, CZ.Settings.allowedMathImprecisionDecimals);
+            return coord;
         }
         Dates.getCoordinateFromYMD = getCoordinateFromYMD;
-        function getYMDFromCoordinate(coord) {
-            var sign = (coord === 0) ? 1 : coord / Math.abs(coord);
-            var day = 0, month = 0, year = 0;
-            var idxYear, countLeapYears = 0;
-            year = (coord >= 0) ? Math.floor(coord) : Math.floor(coord) + 1;
-            var daysPerYear = isLeapYear(year) ? 366 : 365;
-            var day, month;
-            var countDays;
-            countDays = Math.abs(coord) - Math.abs(year) + sign * 1. / daysPerYear;
-            if(sign < 0) {
-                countDays = 1 - countDays;
+        function getYMDFromCoordinate(coord, MarkerCorrection) {
+            if (typeof MarkerCorrection === "undefined") { MarkerCorrection = false; }
+            var absCoord = Math.abs(coord), floorCoord = Math.floor(coord), sign = (coord === 0) ? 1 : coord / absCoord, day = 0, month = 0, year = (coord >= 1) ? floorCoord : floorCoord - 1, isLeap = isLeapYear(year), daysInYear = isLeap ? 366 : 365, daysFraction = sign * (absCoord - Math.abs(floorCoord));
+            day = Math.round(daysFraction * daysInYear);
+            if(MarkerCorrection) {
+                day = Math.floor(daysFraction * daysInYear);
             }
-            var idxMonth = 0;
-            while(countDays > Dates.daysInMonth[idxMonth] / daysPerYear) {
-                countDays -= Dates.daysInMonth[idxMonth] / daysPerYear;
-                if(isLeapYear(year) && (idxMonth === 1)) {
-                    countDays -= 1 / daysPerYear;
+            day += +(day < daysInYear);
+            while(day > Dates.daysInMonth[month] + (+(isLeap && month === 1))) {
+                day -= Dates.daysInMonth[month];
+                if(isLeap && month === 1) {
+                    day--;
                 }
-                idxMonth++;
-            }
-            month = idxMonth;
-            day = countDays * daysPerYear;
-            while(Math.round(day) <= 0) {
-                month--;
-                if(month === -1) {
-                    year--;
-                    month = 11;
-                }
-                day = Dates.daysInMonth[month] + Math.round(day);
-                if(isLeapYear(year) && (month === 1)) {
-                    day++;
-                }
-            }
-            if(coord < 0) {
-                year--;
+                month++;
             }
             return {
                 year: year,
                 month: month,
-                day: Math.round(day)
+                day: day
             };
         }
         Dates.getYMDFromCoordinate = getYMDFromCoordinate;
@@ -111,14 +77,18 @@ var CZ;
                 year: coordinate,
                 regime: "CE"
             };
-            if(coordinate < -999999999) {
+            var eps_const = 100000;
+            if(coordinate <= -999999999) {
                 year.year = (year.year - 1) / (-1000000000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ga';
-            } else if(coordinate < -999999) {
+            } else if(coordinate <= -999999) {
                 year.year = (year.year - 1) / (-1000000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ma';
-            } else if(coordinate < -9999) {
+            } else if(coordinate <= -9999) {
                 year.year = (year.year - 1) / (-1000);
+                year.year = Math.round(year.year * eps_const) / eps_const;
                 year.regime = 'Ka';
             } else if(coordinate < 1) {
                 year.year = (year.year - 1) / (-1);
@@ -161,11 +131,7 @@ var CZ;
         }
         Dates.getPresent = getPresent;
         function isLeapYear(year) {
-            if(year >= 1582 && (year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0))) {
-                return true;
-            } else {
-                return false;
-            }
+            return (year >= 1582 && (year % 400 === 0 || (year % 100 !== 0 && year % 4 === 0)));
         }
         Dates.isLeapYear = isLeapYear;
         function numberofLeap(year) {
@@ -182,6 +148,9 @@ var CZ;
             return years1;
         }
         Dates.numberofLeap = numberofLeap;
+        function roundDecimal(decimal, precision) {
+            return Math.round(decimal * Math.pow(10, precision)) / Math.pow(10, precision);
+        }
     })(CZ.Dates || (CZ.Dates = {}));
     var Dates = CZ.Dates;
 })(CZ || (CZ = {}));

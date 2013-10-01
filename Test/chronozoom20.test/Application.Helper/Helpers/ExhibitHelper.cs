@@ -1,32 +1,21 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Globalization;
+using System.Text;
 using Application.Driver;
 using Application.Helper.Constants;
 using Application.Helper.Entities;
-using Application.Helper.UserActions;
 using OpenQA.Selenium;
 
 namespace Application.Helper.Helpers
 {
-    public class ExhibitHelper : DependentActions
+    public class ExhibitHelper : BaseExhibitHelper
     {
-        private readonly HelperManager _manager;
+        const string LastCanvasElement = Javascripts.LastCanvasElement;
 
-        public ExhibitHelper()
-        {
-            _manager = new HelperManager();
-        }
-
-        public void AddExhibit(Exhibit exhibit)
-        {
-            Logger.Log("<- " + exhibit);
-            InitExhibitCreationMode();
-            SetExhibitPoint();
-            SetExhibitTitle(exhibit.Title);
-            SaveAndClose();
-            Logger.Log("->");
-        }
+        private readonly string _getYmdFromCoordinateScript =
+            String.Format("CZ.Dates.getYMDFromCoordinate({0}.infodotDescription.date)", LastCanvasElement);
 
         public void AddExhibitWithContentItem(Exhibit exhibit)
         {
@@ -34,7 +23,22 @@ namespace Application.Helper.Helpers
             InitExhibitCreationMode();
             SetExhibitPoint();
             SetExhibitTitle(exhibit.Title);
+            if (exhibit.Year != 0)
+            {
+                SetExhibitDate(exhibit);
+            }
             AddArtifacts(exhibit.ContentItems);
+            SaveAndClose();
+            Logger.Log("->");
+        }
+
+        public void AddExhibitWithSkyDriveContentItem(Exhibit exhibit)
+        {
+            Logger.Log("<- " + exhibit);
+            InitExhibitCreationMode();
+            SetExhibitPoint();
+            SetExhibitTitle(exhibit.Title);
+            HelperManager<ExhibitSkyDriveHelper>.Instance.AddSkyDriveArtifacts(exhibit.ContentItems);
             SaveAndClose();
             Logger.Log("->");
         }
@@ -42,16 +46,20 @@ namespace Application.Helper.Helpers
         public Exhibit GetNewExhibit()
         {
             Logger.Log("<-");
-            const string script = Javascripts.LastCanvasElement;
-            var exhibit = new Exhibit();
-            exhibit.ContentItems = new Collection<Chronozoom.Entities.ContentItem>();
-            exhibit.Title = GetJavaScriptExecutionResult(script + ".title");
-            int contentItemsCount = int.Parse(GetJavaScriptExecutionResult(script + ".contentItems.length"));
+            var exhibit = new Exhibit
+                {
+                    ContentItems = new Collection<Chronozoom.Entities.ContentItem>(),
+                    Title = GetJavaScriptExecutionResult(LastCanvasElement + ".title"),
+                    Year = GetNewExhibitYear(),
+                    Month = GetNewExhibitMonth(),
+                    Day = GetNewExhibitday()
+                };
+            int contentItemsCount = int.Parse(GetJavaScriptExecutionResult(LastCanvasElement + ".contentItems.length"));
             Logger.Log("- contentItemsCount: " + contentItemsCount, LogType.MessageWithoutScreenshot);
             for (int i = 0; i < contentItemsCount; i++)
             {
                 var contentItem = new ContentItem();
-                string item = string.Format("{0}.contentItems[{1}].", script, i);
+                string item = string.Format("{0}.contentItems[{1}].", LastCanvasElement, i);
                 contentItem.Title = GetJavaScriptExecutionResult(item + "title");
                 Logger.Log("- contentItem.Title: " + contentItem.Title, LogType.MessageWithoutScreenshot);
                 contentItem.Caption = GetJavaScriptExecutionResult(item + "description");
@@ -63,13 +71,46 @@ namespace Application.Helper.Helpers
                 contentItem.MediaSource = GetJavaScriptExecutionResult(item + "mediaSource");
                 Logger.Log("- contentItem.MediaSource: " + contentItem.MediaSource, LogType.MessageWithoutScreenshot);
                 contentItem.Attribution = GetJavaScriptExecutionResult(item + "attribution");
-                Logger.Log("- contentItem.attribution: " + contentItem.Attribution, LogType.MessageWithoutScreenshot);
+                Logger.Log("- contentItem.Attribution: " + contentItem.Attribution, LogType.MessageWithoutScreenshot);
                 exhibit.ContentItems.Add(contentItem);
             }
-            exhibit.Id = new Guid(GetJavaScriptExecutionResult(script + ".guid"));
+            WaitCondition(() => (GetJavaScriptExecutionResult(LastCanvasElement + ".guid") != string.Empty), Configuration.ImplicitWait);
+            string parseGuid = GetJavaScriptExecutionResult(LastCanvasElement + ".guid");
+            Logger.Log("- parse guid: " + parseGuid, LogType.MessageWithoutScreenshot);
+            exhibit.Id = new Guid(parseGuid);
             Logger.Log("- exhibit.Id: " + exhibit.Id, LogType.MessageWithoutScreenshot);
             Logger.Log("->" + exhibit);
             return exhibit;
+        }
+
+
+        public string GetNewExhibitDisplayDate()
+        {
+            return
+                GetJavaScriptExecutionResult(
+                    String.Format("{0}.children[0].content.children[{0}.children[0].content.children.length-2].text[1]", LastCanvasElement));
+
+        }
+
+        private string GetNewExhibitday()
+        {
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
+            return GetJavaScriptExecutionResult(_getYmdFromCoordinateScript + ".day");
+        }
+
+        private string GetNewExhibitMonth()
+        {
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
+            int monthNumber = int.Parse(
+                        GetJavaScriptExecutionResult(_getYmdFromCoordinateScript + ".month")) + 1;
+            Logger.Log("- month number" + monthNumber, LogType.MessageWithoutScreenshot);
+            return monthNumber == 0 ? "" : CultureInfo.InvariantCulture.DateTimeFormat.GetMonthName(monthNumber);
+        }
+
+        private decimal GetNewExhibitYear()
+        {
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
+            return Decimal.Parse(GetJavaScriptExecutionResult(_getYmdFromCoordinateScript + ".year"));
         }
 
         public void DeleteExhibitByJavascript(Exhibit exhibit)
@@ -87,10 +128,10 @@ namespace Application.Helper.Helpers
             }
         }
 
-        public string GetContentItemDescription()
+        public string GetFirstContentItemDescription()
         {
             Logger.Log("<-");
-            string description = GetText(By.XPath("//*[@id='vc']/*[@class='contentItemDescription']/div"));
+            string description = GetText(By.CssSelector("#vc>.contentItemDescription>div"));
             Logger.Log("-> description: " + description);
             return description;
         }
@@ -99,12 +140,12 @@ namespace Application.Helper.Helpers
         {
             Logger.Log("<- title: " + exhibit.Title);
             NavigateToExhibit(exhibit);
+            MoveToElementAndClick(By.ClassName("virtualCanvasLayerCanvas"));
             InitEditExhibitForm();
             ClickDeleteButton();
             ConfirmDeletion();
             Logger.Log("->");
         }
-
 
         public bool IsExhibitFound(Exhibit exhibit)
         {
@@ -125,9 +166,9 @@ namespace Application.Helper.Helpers
         public string GetEukaryoticCellsDescription()
         {
             Logger.Log("<-");
-            _manager.GetNavigationHelper().OpenExhibitEukaryoticCells();
+            HelperManager<NavigationHelper>.Instance.OpenExhibitEukaryoticCells();
             Logger.Log("ExhibitEukaryotic Cell is opened");
-            string description = GetContentItemDescription();
+            string description = GetFirstContentItemDescription();
             Logger.Log("-> description: " + description);
             return description;
         }
@@ -140,6 +181,126 @@ namespace Application.Helper.Helpers
             return expectedUri;
         }
 
+        public void NavigateToExhibit(Exhibit exhibit)
+        {
+            Logger.Log("<- title: " + exhibit.Title);
+            ExecuteJavaScript(string.Format("CZ.Search.goToSearchResult('e{0}')", exhibit.Id));
+            WaitAnimation();
+            Logger.Log("->");
+        }
+
+        public string GetTakeOurSurveyArtifactContentItemDescription()
+        {
+            Logger.Log("<-");
+            string description = GetFirstContentItemDescription();
+            Logger.Log("-> description: " + description);
+            return description;
+        }
+
+        public void OpenBibliography()
+        {
+            Logger.Log("<-");
+            HelperManager<ImageHelper>.Instance.ClickOnBibliographyImage();
+            Logger.Log("->");
+        }
+
+        public bool IsBibliographyOpened()
+        {
+            return IsElementDisplayed(By.Id("bibliography"));
+        }
+
+        public Bibliography GetBibliography()
+        {
+            Logger.Log("<-");
+            OpenBibliography();
+            var bibliography = new Bibliography {Sources = new List<Source>()};
+            var bibliographySource = new Source();
+            ReadOnlyCollection<IWebElement> sources = FindElements(By.ClassName("source"));
+            foreach (IWebElement source in sources)
+            {
+                bibliographySource.Name = source.FindElement(By.ClassName("sourceName")).Text;
+                bibliographySource.Description = source.FindElement(By.ClassName("sourceDescr")).Text;
+                bibliography.Sources.Add(bibliographySource);
+            }
+            Logger.Log("->");
+            return bibliography;
+        }
+
+        public void CloseBibliography()
+        {
+            Logger.Log("<-");
+            Click(By.Id("biblCloseButton"));
+            Logger.Log("->");
+        }
+
+        public void AddExhibitWithoutFormClosing(Exhibit exhibit)
+        {
+            Logger.Log("<- " + exhibit);
+            InitExhibitCreationMode();
+            SetExhibitPoint();
+            SetExhibitTitle(exhibit.Title);
+            Logger.Log("->");
+        }
+
+        public void ClickOnAddArtifact()
+        {
+            Logger.Log("<-");
+            InitArtifactForm();
+            Logger.Log("->");
+        }
+
+        public string GetCurrentImageOrVideoUrl()
+        {
+            Logger.Log("<-");
+            string imageUrl = GetElementValue(By.CssSelector(SetAuthContentItemFormElementLocator("input.cz-form-item-mediaurl")));
+            Logger.Log("-> imageUrl: " + imageUrl);
+            return imageUrl;
+        }
+
+        public string GetCurrentMediaSource()
+        {
+            Logger.Log("<-");
+            string mediaSource = GetElementValue(By.CssSelector(SetAuthContentItemFormElementLocator("input.cz-form-item-mediasource")));
+            Logger.Log("-> mediaSource: " + mediaSource);
+            return mediaSource;
+        }
+
+        public string GetCurrentAttribution()
+        {
+            Logger.Log("<-");
+            string mediaSource = GetElementValue(By.CssSelector(SetAuthContentItemFormElementLocator("input.cz-form-item-attribution")));
+            Logger.Log("-> attribution: " + mediaSource);
+            return mediaSource;
+        }
+
+        public string GetCurrentMediaType()
+        {
+            Logger.Log("<-");
+            string mediaSource = GetElementValue(By.CssSelector(SetAuthContentItemFormElementLocator("select.cz-form-item-media-type.cz-input")));
+            Logger.Log("-> attribution: " + mediaSource);
+            return mediaSource;
+        }
+
+        public string GetExhibitDisplayDate(Exhibit exhibit)
+        {
+            Logger.Log("<-");
+            string scriptGetExhibit = String.Format("CZ.Common.vc.virtualCanvas('findElement', 'e{0}__title').text", exhibit.Id);
+            int countExhibitTitleItems = int.Parse(GetJavaScriptExecutionResult(scriptGetExhibit + ".length"));
+            var date = new StringBuilder();
+            for (int index = 1; index < countExhibitTitleItems; index++)
+            {
+                date.Append(GetJavaScriptExecutionResult(String.Format("{0}[{1}]", scriptGetExhibit, index))).Append(" ");
+            }
+            Logger.Log("-> date: " + date);
+            return date.ToString();
+        }
+
+        public decimal GetCoordinateFromYmd(decimal year, int month, int day)
+        {
+            string monthStr = (month - 1).ToString(CultureInfo.InvariantCulture);
+            return Decimal.Parse(GetJavaScriptExecutionResult(String.Format("CZ.Dates.getCoordinateFromYMD({0},{1},{2})", year, monthStr, day)));
+        }
+        
         private void ConfirmDeletion()
         {
             AcceptAlert();
@@ -148,7 +309,7 @@ namespace Application.Helper.Helpers
 
         private void ClickDeleteButton()
         {
-            Click(By.XPath("//*[@id='auth-edit-exhibit-form']//*[@class='cz-form-delete cz-button']"));
+            Click(By.CssSelector("#auth-edit-exhibit-form .cz-form-delete.cz-button"));
         }
 
         private void InitEditExhibitForm()
@@ -161,34 +322,76 @@ namespace Application.Helper.Helpers
             Logger.Log("->");
         }
 
-        private void NavigateToExhibit(Exhibit exhibit)
-        {
-            Logger.Log("<- title: " + exhibit.Title);
-            ExecuteJavaScript(string.Format("CZ.Search.goToSearchResult('e{0}')", exhibit.Id));
-            WaitAnimation();
-            MoveToElementAndClick(By.ClassName("virtualCanvasLayerCanvas"));
-            Logger.Log("->");
-        }
-
         private void SaveAndClose()
         {
             Logger.Log("<-");
-            Click(By.XPath("//*[@id='auth-edit-exhibit-form']//*[@class='cz-form-save cz-button']"));
+            By saveButton = By.CssSelector("#auth-edit-exhibit-form .cz-form-save.cz-button");
+            WaitForElementEnabled(saveButton);
+            Click(saveButton);
             Logger.Log("->");
         }
 
         private void SetExhibitTitle(string exhibitName)
         {
             Logger.Log("<- name: " + exhibitName);
-            TypeText(By.XPath("//*[@id='auth-edit-exhibit-form']//*[@class='cz-form-item-title cz-input']"), exhibitName);
+            By title = By.CssSelector("#auth-edit-exhibit-form .cz-form-item-title");
+            WaitForExhibitEditFormIsDisplayed();
+            WaitForElementEnabled(title);
+            WaitForElementIsDisplayed(title);
+            TypeText(title, exhibitName);
+            Logger.Log("->");
+        }
+
+        private void WaitForExhibitEditFormIsDisplayed()
+        {
+            Logger.Log("<-");
+            WaitForElementIsDisplayed(By.Id("auth-edit-exhibit-form"));
+            Logger.Log("->");
+        }
+
+        private void SetExhibitDate(Exhibit exhibit)
+        {
+            Logger.Log("<- name: " + exhibit.Title);
+            SetTimeMode(exhibit.TimeMode);
+            SetMonth(exhibit.Month);
+            SetDay(exhibit.Day);
+            SetYear(exhibit.Year.ToString(CultureInfo.InvariantCulture));
+            Logger.Log("->");
+        }
+
+        private void SetTimeMode(string timeMode)
+        {
+            Logger.Log("<- time mode: " + timeMode);
+            SelectByText(By.CssSelector(".cz-datepicker-mode.cz-input"), timeMode);
+            Logger.Log("->");
+        }
+
+        private void SetMonth(string month)
+        {
+            Logger.Log("<- month: " + month);
+            SelectByText(By.CssSelector(".cz-datepicker-month-selector.cz-input"), month);
+            Logger.Log("->");
+        }
+
+        private void SetDay(string day)
+        {
+            Logger.Log("<- day: " + day);
+            SelectByText(By.CssSelector(".cz-datepicker-day-selector.cz-input"), day);
+            Logger.Log("->");
+        }
+
+        private void SetYear(string year)
+        {
+            Logger.Log("<- year: " + year);
+            TypeText(By.CssSelector(".cz-datepicker-year-date.cz-input"), year);
             Logger.Log("->");
         }
 
         private void InitExhibitCreationMode()
         {
             Logger.Log("<-");
-            MoveToElementAndClick(By.XPath("//*[@title='Create your events']"));
-            MoveToElementAndClick(By.XPath("//button[text()='create exhibit']"));
+            MoveToElementAndClick(By.CssSelector("[title='Create Your Events']"));
+            MoveToElementAndClick(By.CssSelector(".cz-form-create-exhibit.cz-button"));
             Logger.Log("->");
         }
 
@@ -201,7 +404,7 @@ namespace Application.Helper.Helpers
 
         private void FillArtifact(Chronozoom.Entities.ContentItem contentItem)
         {
-            Logger.Log("<-");
+            Logger.Log("<- contentItem: " + contentItem);
             if (contentItem.Title != null) SetTitle(contentItem.Title);
             if (contentItem.Caption != null) SetDescription(contentItem.Caption);
             if (contentItem.Uri != null) SetUrl(contentItem.Uri);
@@ -213,46 +416,48 @@ namespace Application.Helper.Helpers
 
         private void SetMediaSourse(string mediaSource)
         {
-            TypeText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-mediasource cz-input']"), mediaSource);
+            Logger.Log("-> mediaSource: " + mediaSource);
+            TypeText(By.CssSelector(SetAuthContentItemFormElementLocator(".cz-form-item-mediasource")), mediaSource);
+            Logger.Log("<-");
         }
 
         private void SetAttribution(string attribution)
         {
-            TypeText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-attribution cz-input']"), attribution);
+            Logger.Log("-> attribution: " + attribution);
+            TypeText(By.CssSelector(SetAuthContentItemFormElementLocator(".cz-form-item-attribution")), attribution);
+            Logger.Log("<-");
         }
 
         private void SelectMediaType(string mediaType)
         {
-            SelectByText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-media-type cz-input']"), mediaType);
+            Logger.Log("-> mediaType: " + mediaType);
+            SelectByText(By.CssSelector(SetAuthContentItemFormElementLocator(".cz-form-item-media-type")), mediaType);
+            Logger.Log("<-");
         }
 
-        private void SetUrl(string mediaSourse)
+        private void SetUrl(string url)
         {
-            TypeText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-mediaurl cz-input']"), mediaSourse);
+            Logger.Log("-> url: " + url);
+            TypeText(By.CssSelector(SetAuthContentItemFormElementLocator(".cz-form-item-mediaurl")), url);
+            Logger.Log("<-");
         }
-
-        private void SetDescription(string description)
-        {
-            TypeText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-descr cz-input']"), description);
-        }
-
-        private void SetTitle(string title)
-        {
-            TypeText(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-item-title cz-input']"), title);
-        }
-
 
         private void AddArtifacts(IEnumerable<Chronozoom.Entities.ContentItem> contentItems)
         {
+            Logger.Log("->");
             foreach (Chronozoom.Entities.ContentItem contentItem in contentItems)
             {
-                By createArtifactButton = By.XPath("//*[@class='cz-form-create-artifact cz-button']");
-                WaitForElementEnabled(createArtifactButton);
-                Click(createArtifactButton);
+                Logger.Log("-- " + contentItem);
+                InitArtifactForm();
                 FillArtifact(contentItem);
-                Click(By.XPath("//*[@id='auth-edit-contentitem-form']//*[@class='cz-form-save cz-button']"));
+                SaveArtifact();
             }
+            Logger.Log("<-");
+        }
 
+        private string SetAuthContentItemFormElementLocator(string element)
+        {
+            return String.Format("#auth-edit-contentitem-form div.cz-form-content {0}.cz-input", element);
         }
 
     }

@@ -1,10 +1,12 @@
 ﻿/// <reference path='../ui/controls/formbase.ts'/>
 /// <reference path='../scripts/authoring.ts'/>
+/// <reference path='../ui/media/skydrive-mediapicker.ts'/>
 /// <reference path='../scripts/typings/jquery/jquery.d.ts'/>
+
 
 module CZ {
     export module UI {
-
+        declare var WL: any;
 
         export interface FormEditProfileInfo extends CZ.UI.IFormUpdateEntityInfo {
             logoutButton: string;
@@ -16,6 +18,9 @@ module CZ {
             loginPanelLogin: string;
             context: Object;
             allowRedirect: bool;
+            collectionTheme: string;
+            collectionThemeInput: string;
+            collectionThemeWrapper: string;
         }
 
         export class FormEditProfile extends CZ.UI.FormUpdateEntity {
@@ -31,6 +36,9 @@ module CZ {
             private profilePanel: JQuery;
             private loginPanelLogin: JQuery;
             private allowRedirect: bool;
+            private collectionTheme: string;
+            private collectionThemeInput: JQuery;
+            private collectionThemeWrapper: JQuery;
 
 
             constructor(container: JQuery, formInfo: FormEditProfileInfo) {
@@ -44,6 +52,12 @@ module CZ {
                 this.profilePanel = $(document.body).find(formInfo.profilePanel).first();
                 this.loginPanelLogin = $(document.body).find(formInfo.loginPanelLogin).first();
                 this.allowRedirect = formInfo.allowRedirect;
+                this.collectionTheme = formInfo.collectionTheme;
+                this.collectionThemeInput = container.find(formInfo.collectionThemeInput);
+                this.collectionThemeWrapper = container.find(formInfo.collectionThemeWrapper);
+
+                this.usernameInput.off("keypress");
+                this.emailInput.off("keypress");
 
                 this.initialize();
             }
@@ -52,7 +66,7 @@ module CZ {
                 // Maximum length is 254: http://stackoverflow.com/questions/386294/what-is-the-maximum-length-of-a-valid-email-address
                 if (String(e).length > 254)
                     return false;
-                var filter = /^([\w^_]+(?:([-_\.\+][\w^_]+)|)|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
+                var filter = /^([\w^_]+((?:([-_.\+][\w^_]+)|))+|(xn--[\w^_]+))@([\w^_]+(?:(-+[\w^_]+)|)|(xn--[\w^_]+))(?:\.([\w^_]+(?:([\w-_\.\+][\w^_]+)|)|(xn--[\w^_]+)))$/i;
                 return String(e).search(filter) != -1;
             }
 
@@ -64,15 +78,22 @@ module CZ {
 
             private initialize(): void {
                 var profile = CZ.Service.getProfile();
+
+                if (this.collectionThemeWrapper) {
+                    this.collectionThemeWrapper.show();
+                }
+
                 profile.done(data => {
                     if (data.DisplayName != null) {
                         this.usernameInput.val(data.DisplayName);
                         if (data.DisplayName != "") {
-                            this.usernameInput.prop('disabled', true);
+                            this.usernameInput.prop('disabled', true);                            
+                        }
+                        this.emailInput.val(data.Email);
+                        if (data.Email !== undefined && data.Email !== '' && data.Email != null) {
                             this.agreeInput.attr('checked', true);
                             this.agreeInput.prop('disabled', true);
                         }
-                        this.emailInput.val(data.Email);
                     }
                 });
 
@@ -83,19 +104,24 @@ module CZ {
                         return;
                     }
 
+                    var emailAddress = "";
+                    if (this.emailInput.val()) {
+                        var emailIsValid = this.validEmail(this.emailInput.val());
+                        if (!emailIsValid) {
+                            alert("Provided incorrect email address");
+                            return;
+                        }
 
+                        var agreeTerms = this.agreeInput.prop("checked");
+                        if (!agreeTerms) {
+                            alert("Please agree with provided terms");
+                            return;
+                        }
 
-                    isValid = this.validEmail(this.emailInput.val());
-                    if (!isValid) {
-                        alert("Provided incorrect email address");
-                        return;
+                        emailAddress = this.emailInput.val();
                     }
 
-                    isValid = this.agreeInput.prop("checked");
-                    if (!isValid) {
-                        alert("Please agree with provided terms");
-                        return;
-                    }
+                    this.collectionTheme = this.collectionThemeInput.val();
 
                     Service.getProfile().done((curUser) => {
                         Service.getProfile(this.usernameInput.val()).done((getUser) => {
@@ -104,14 +130,25 @@ module CZ {
                                 alert("Sorry, this username is already in use. Please try again.");
                                 return;
                             }
-                            CZ.Service.putProfile(this.usernameInput.val(), this.emailInput.val()).then(
+                            CZ.Service.putProfile(this.usernameInput.val(), emailAddress).then(
                                 success => {
-                                    // Redirect to personal collection.
-                                    if (this.allowRedirect) {
-                                        window.location.assign("\\" + success);
+                                    if (this.collectionTheme) {
+                                        CZ.Service.putCollection(this.usernameInput.val(), this.usernameInput.val(), { theme: this.collectionTheme }).then(() => {
+                                            if (this.allowRedirect) {
+                                                window.location.assign("/" + success);
+                                            }
+                                            else {
+                                                this.close();
+                                            }
+                                        });
                                     }
                                     else {
-                                        this.close();
+                                        if (this.allowRedirect) {
+                                            window.location.assign("/" + success);
+                                        }
+                                        else {
+                                            this.close();
+                                        }
                                     }
                                 },
                                 function (error) {
@@ -121,20 +158,22 @@ module CZ {
                             );
                         });
                     });
-
                 });
 
                 this.logoutButton.click(event =>
                 {
-                    return $.ajax({
-                        url: "/account/logout"
-                    }).done(data => {
-                        this.profilePanel.hide();
-                        this.loginPanel.show();
-
-                        this.close();
-                    });
+                    WL.logout();
+                    window.location.assign("/pages/logoff.aspx");
                 });
+
+                // Prevent default behavior of Enter key for input elements.
+                var preventEnterKeyPress = event => {
+                    if (event.which == 13) {
+                        event.preventDefault();
+                    }
+                };
+                this.usernameInput.keypress(preventEnterKeyPress);
+                this.emailInput.keypress(preventEnterKeyPress);
             }
 
             public show(): void {
@@ -144,6 +183,7 @@ module CZ {
                     duration: 500
                 });
 
+                this.collectionThemeInput.val(this.collectionTheme);
                 this.activationSource.addClass("active");
             }
 
@@ -155,6 +195,10 @@ module CZ {
                 });
 
                 this.activationSource.removeClass("active");
+            }
+
+            public setTheme(theme: string) {
+                this.collectionTheme = theme;
             }
         }
     }

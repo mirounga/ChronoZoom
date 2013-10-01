@@ -93,11 +93,11 @@
     <Content Include="Content\jasmine\jasmine_favicon.png" />
     <Content Include="Scripts\jasmine\jasmine-html.js" />
     <Content Include="Scripts\jasmine\jasmine.js" />
+    <Content Include="Scripts\Specs\authoringExhibitSpec.js" />
     <Content Include="Scripts\Specs\authoringSpec.js" />
     <Content Include="Scripts\Specs\commonSpec.js" />
     <Content Include="Scripts\Specs\datepickerSpec.js" />
     <Content Include="Scripts\Specs\datesSpec.js" />
-    <Content Include="Scripts\Specs\featureActivationSpec.js" />
     <Content Include="Scripts\Specs\timeSeriesSpec.js" />
     <Content Include="Scripts\typings\jasmine\jasmine.d.ts" />
     <Content Include="Scripts\Specs\profileDataSpec.js" />

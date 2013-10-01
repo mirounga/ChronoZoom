@@ -6,27 +6,22 @@ module CZ {
     export module Service {
 
         module Map {
-            function bookmark(ts: CZ.UI.TourStop) : any
-            {
+            function bookmark(ts: CZ.UI.TourStop): any {
                 return {
-                    id: ts.bookmarkId,
                     name: ts.Title,
                     url: ts.NavigationUrl,
                     lapseTime: ts.LapseTime,
                     description: ts.Description,
-                    sequenceId: ts.Sequence
                 };
             }
 
-            export function tour(t : CZ.UI.Tour) : any
-            {
+            export function tour(t: CZ.UI.Tour): any {
                 var bookmarks = new Array(t.Stops.length);
-                for (var i = 0, n = t.Stops.length; i < n; i++)
-                {
+                for (var i = 0, n = t.Stops.length; i < n; i++) {
                     bookmarks[i] = bookmark(t.Stops[i]);
                 }
 
-                return {
+                var tourRequest = {
                     id: t.Id,
                     name: t.Title,
                     description: t.Description,
@@ -35,6 +30,8 @@ module CZ {
                     sequence: t.Sequence,
                     bookmarks: bookmarks
                 };
+
+                return tourRequest;
             }
 
             export function timeline(t) {
@@ -92,7 +89,7 @@ module CZ {
 
         var _serviceUrl = CZ.Settings.serverUrlHost + "/api/";
 
-        export function Request (urlBase) {
+        export function Request(urlBase) {
             var _url = urlBase;
             var _hasParameters = false;
 
@@ -126,7 +123,7 @@ module CZ {
             };
         };
 
-        
+
         // NOTE: Clear collections to let the server decide what to load.
         export var collectionName = "";
         export var superCollectionName = "";
@@ -136,7 +133,8 @@ module CZ {
         */
 
         // .../gettimelines?supercollection=&collection=&start=&end=&minspan=&lca=
-        export function getTimelines (r) {
+        export function getTimelines(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath("gettimelines");
             request.addParameter("supercollection", superCollectionName);
@@ -157,9 +155,10 @@ module CZ {
             * Information Retrieval.
             */
 
-        // .../{supercollection}/collections
+        // .../{superCollectionName}/collections
         // NOTE: Not implemented in current API.
-        export function getCollections () {
+        export function getCollections(superCollectionName: string) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath("collections");
@@ -174,7 +173,8 @@ module CZ {
 
         // .../{supercollection}/{collection}/structure?start=&end=&minspan=&lca=
         // NOTE: Not implemented in current API.
-        export function getStructure (r) {
+        export function getStructure(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -191,7 +191,8 @@ module CZ {
 
         // .../{supercollection}/{collection}/data
         // NOTE: Not implemented in current API.
-        export function postData (r) {
+        export function postData(r) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -212,10 +213,11 @@ module CZ {
         */
 
         // .../{supercollection}/{collection}
-        export function putCollection (c) {
+        export function putCollection(superCollectionName: string, collectionName: string, c) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
-            request.addToPath(c.name);
+            request.addToPath(collectionName);
 
             return $.ajax({
                 type: "PUT",
@@ -228,7 +230,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}
-        export function deleteCollection (c) {
+        export function deleteCollection(c) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(c.name);
@@ -243,7 +246,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/timeline
-        export function putTimeline (t) {
+        export function putTimeline(t) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -262,7 +266,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/timeline
-        export function deleteTimeline (t) {
+        export function deleteTimeline(t) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -280,7 +285,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/exhibit
-        export function putExhibit (e) {
+        export function putExhibit(e) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -299,7 +305,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/exhibit
-        export function deleteExhibit (e) {
+        export function deleteExhibit(e) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -317,7 +324,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/contentitem
-        export function putContentItem (ci) {
+        export function putContentItem(ci) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -336,7 +344,8 @@ module CZ {
         }
 
         // .../{supercollection}/{collection}/contentitem
-        export function deleteContentItem (ci) {
+        export function deleteContentItem(ci) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -353,34 +362,14 @@ module CZ {
             });
         }
 
-
         // .../{supercollection}/{collection}/tour
-        // Creates new tour
-        export function postTour(t : CZ.UI.Tour) {
+        // Creates or updates a tour
+        export function putTour2(t: CZ.UI.Tour) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
-            request.addToPath("tour");
-
-            console.log("[POST] " + request.url);
-
-            return $.ajax({
-                type: "POST",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify(Map.tour(t))
-            });
-        }
-
-        // .../{supercollection}/{collection}/tour
-        // Updates a tour
-        export function putTour(t: CZ.UI.Tour) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(superCollectionName);
-            request.addToPath(collectionName);
-            request.addToPath("tour");
+            request.addToPath("tour2");
 
             console.log("[PUT] " + request.url);
 
@@ -397,6 +386,7 @@ module CZ {
         // .../{supercollection}/{collection}/tour
         // Deletes a tour
         export function deleteTour(tourId: string) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -414,60 +404,15 @@ module CZ {
             });
         }
 
-        // .../{supercollection}/{collection}/bookmark
-        // Deletes bookmarks
-        export function deleteBookmarks(tourId: string, bookmarks: CZ.Tours.TourBookmark[]) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(superCollectionName);
-            request.addToPath(collectionName);
-            request.addToPath("bookmark");
-
-            console.log("[DELETE] " + request.url);
-
-            var bids = new Array(bookmarks.length);
-            for (var i = 0, n = bookmarks.length; i < n; i++){
-                bids[i] = { id: bookmarks[i].id };
-            }
-
-            return $.ajax({
-                type: "DELETE",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify({
-                    id: tourId,
-                    bookmarks: bids
-                })
-            });
-        }
-
-        // .../{supercollection}/{collection}/bookmark
-        // Adds bookmarks to a tour
-        export function putBookmarks(t: CZ.UI.Tour) {
-            var request = new Request(_serviceUrl);
-            request.addToPath(superCollectionName);
-            request.addToPath(collectionName);
-            request.addToPath("bookmark");
-
-            console.log("[PUT] " + request.url);
-
-            return $.ajax({
-                type: "PUT",
-                cache: false,
-                contentType: "application/json",
-                dataType: "json",
-                url: request.url,
-                data: JSON.stringify(Map.tour(t))
-            });
-        }
-
         // .../{supercollection}/{collection}/tours
-        export function getTours () {
+        export function getTours() {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
             request.addToPath("tours");
+
+            console.log("[GET] " + request.url);
 
             return $.ajax({
                 type: "GET",
@@ -477,8 +422,128 @@ module CZ {
             });
         }
 
+        // .../search
+        export function getSearch(query) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("Search");
+
+            var data = {
+                searchTerm: query,
+                supercollection: CZ.Service.superCollectionName,
+                collection: CZ.Service.collectionName
+            };
+
+            console.log("[GET] " + request.url);
+
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data
+            });
+        }
+
+        // .../bing/getImages
+        export function getBingImages(query, top = CZ.Settings.defaultBingSearchTop, skip = CZ.Settings.defaultBingSearchSkip) {
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getImages");
+
+            var data = {
+                query: query,
+                top: top,
+                skip: skip
+            };
+
+            console.log("[GET] " + request.url);
+
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+
+        // .../bing/getVideos
+        export function getBingVideos(query, top = CZ.Settings.defaultBingSearchTop, skip = CZ.Settings.defaultBingSearchSkip) {
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getVideos");
+
+            var data = {
+                query: query,
+                top: top,
+                skip: skip
+            };
+
+            console.log("[GET] " + request.url);
+
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+
+        // .../bing/getDocuments
+        // set doctype to undefined if you want it to be omited
+        export function getBingDocuments(query, doctype = undefined, top = CZ.Settings.defaultBingSearchTop, skip = CZ.Settings.defaultBingSearchSkip) {
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("bing/getDocuments");
+
+            var data = {
+                query: query,
+                doctype: doctype,
+                top: top,
+                skip: skip
+            };
+
+            console.log("[GET] " + request.url);
+
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                data: data,
+                success: function (response) {
+                }
+            });
+        }
+
+        // .../twitter/getRecentTweets
+        export function getRecentTweets() {
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("twitter/getRecentTweets");
+
+            console.log("[GET] " + request.url);
+
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                dataType: "json",
+                url: request.url,
+                success: function (response) {
+                }
+            });
+        }
+
         // .../{supercollection}/{collection}/structure?start=&end=&minspan=&lca=
         export function getServiceInformation() {
+            CZ.Authoring.resetSessionTimer();
             var request = new Request(_serviceUrl);
             request.addToPath("info");
 
@@ -492,6 +557,7 @@ module CZ {
 
         // .../{supercollection}/{collection}/{reference}/contentpath
         export function getContentPath(reference: string) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath(superCollectionName);
             request.addToPath(collectionName);
@@ -504,13 +570,14 @@ module CZ {
                 dataType: "json",
                 url: request.url
             });
-        } getContentPath
+        }
 
         /**
         * Auxiliary Methods.
         */
 
-        export function putExhibitContent (e, oldContentItems) : JQueryPromise {
+        export function putExhibitContent(e, oldContentItems): JQueryPromise {
+            CZ.Authoring.resetSessionTimer();
             var newGuids = e.contentItems.map(function (ci) {
                 return ci.guid;
             });
@@ -543,6 +610,7 @@ module CZ {
         * @param  {Object} email .
         */
         export function putProfile(displayName, email) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
             var user = {
@@ -563,6 +631,7 @@ module CZ {
         * @param  {Object} username .
         */
         export function deleteProfile(displayName) {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
             var user = {
@@ -578,10 +647,188 @@ module CZ {
         }
 
         export function getProfile(displayName = "") {
+            CZ.Authoring.resetSessionTimer();
             var request = new Service.Request(_serviceUrl);
             request.addToPath("user");
-            if(displayName != "")
+            if (displayName != "")
                 request.addParameter("name", displayName);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            }).done(profile => {
+                if (!profile.id)
+                    return null;
+
+                return profile;
+            });
+        }
+
+        export function getMimeTypeByUrl(url): string {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("mimetypebyurl");
+            if (url == "") return result;
+            request.addParameter("url", url);
+            $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                async: false
+            }).done(mime => {
+                if(mime)
+                    result = mime;
+            });
+            return result;
+        }
+
+        export function getUserFavorites(){
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+        export function deleteUserFavorite(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            if (guid == "") return null;
+            request.addToPath(guid);
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        export function putUserFavorite(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfavorites");
+            if (guid == "") return null;
+            request.addToPath(guid);
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        export function getUserFeatured(guid: string = "default") {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            request.addToPath(guid);
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        export function deleteUserFeatured(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            if (guid == "") return null;
+            request.addToPath(guid);
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        export function putUserFeatured(guid) {
+            var result = "";
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("userfeatured");
+            if (guid == "") return null;
+            request.addToPath(guid);
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        //Triples
+
+        export function putTriplet(subject, predicate, object) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            return $.ajax({
+                type: "PUT",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                data: JSON.stringify({
+                    Subject: subject,
+                    Predicate: predicate,
+                    Object: object
+                })
+            });
+        }
+
+        export function getTriplets(subject, predicate = null, object = null) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            request.addParameter("subject", encodeURIComponent(subject));
+            if(predicate != null)
+                request.addParameter("predicate", encodeURIComponent(predicate));
+            if(object != null)
+                request.addParameter("object", encodeURIComponent(object));
+            return $.ajax({
+                type: "GET",
+                cache: false,
+                contentType: "application/json",
+                url: request.url
+            });
+        }
+
+        export function deleteTriplet(subject, predicate, object) {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            return $.ajax({
+                type: "DELETE",
+                cache: false,
+                contentType: "application/json",
+                url: request.url,
+                data: JSON.stringify({
+                    Subject: subject,
+                    Predicate: predicate,
+                    Object: object
+                })
+            });
+        }
+
+        export function getPrefixes() {
+            CZ.Authoring.resetSessionTimer();
+            var request = new Service.Request(_serviceUrl);
+            request.addToPath("triples");
+            request.addToPath("prefixes");
             return $.ajax({
                 type: "GET",
                 cache: false,

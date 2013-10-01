@@ -27,9 +27,7 @@ var CZ;
             };
             FormToursList.prototype.show = function () {
                 var self = this;
-                $(window).resize(function (e) {
-                    return self.onWindowResize(e);
-                });
+                $(window).resize(this.onWindowResize);
                 this.onWindowResize(null);
                 _super.prototype.show.call(this, {
                     effect: "slide",
@@ -39,19 +37,20 @@ var CZ;
                 this.activationSource.addClass("active");
             };
             FormToursList.prototype.close = function () {
-                $(window).unbind("resize");
+                var _this = this;
+                $(window).unbind("resize", this.onWindowResize);
                 _super.prototype.close.call(this, {
                     effect: "slide",
                     direction: "right",
                     duration: 500,
                     complete: function () {
+                        _this.container.find("cz-form-errormsg").hide();
+                        _this.container.find("#tours").empty();
+                        _this.toursListBox.container.empty();
                     }
                 });
                 CZ.Authoring.isActive = false;
                 this.activationSource.removeClass("active");
-                this.container.find("cz-form-errormsg").hide();
-                this.container.find("#tours").empty();
-                this.toursListBox.container.empty();
             };
             FormToursList.prototype.onTakeTour = function (tour) {
                 this.close();

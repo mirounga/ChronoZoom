@@ -34,12 +34,16 @@ var CZ;
         Authoring.mode = null;
         Authoring.contentItemMode = null;
         Authoring.showCreateTimelineForm = null;
+        Authoring.showCreateRootTimelineForm = null;
         Authoring.showEditTimelineForm = null;
         Authoring.showCreateExhibitForm = null;
         Authoring.showEditExhibitForm = null;
         Authoring.showEditContentItemForm = null;
         Authoring.showEditTourForm = null;
+        Authoring.showMessageWindow = null;
+        Authoring.hideMessageWindow = null;
         Authoring.callback = null;
+        Authoring.timer;
         function isIntersecting(te, obj) {
             switch(obj.type) {
                 case "timeline":
@@ -52,12 +56,12 @@ var CZ;
         function isIncluded(tp, obj) {
             switch(obj.type) {
                 case "infodot":
-                    return (tp.x <= obj.infodotDescription.date && tp.y <= obj.y && tp.x + tp.width >= obj.infodotDescription.date && tp.y + tp.height >= obj.y + obj.height);
+                    return (tp.x <= obj.infodotDescription.date && tp.x + tp.width >= obj.infodotDescription.date && tp.y + tp.height >= obj.y + obj.height);
                     break;
                 case "timeline":
                 case "rectangle":
                 case "circle":
-                    return (tp.x <= obj.x + CZ.Settings.allowedMathImprecision && tp.y <= obj.y + CZ.Settings.allowedMathImprecision && tp.x + tp.width >= obj.x + obj.width - CZ.Settings.allowedMathImprecision && tp.y + tp.height >= obj.y + obj.height - CZ.Settings.allowedMathImprecision);
+                    return (tp.x <= obj.x + CZ.Settings.allowedMathImprecision && tp.x + tp.width >= obj.x + obj.width - CZ.Settings.allowedMathImprecision && tp.y + tp.height >= obj.y + obj.height - CZ.Settings.allowedMathImprecision);
                 default:
                     return true;
             }
@@ -66,7 +70,7 @@ var CZ;
             var i = 0;
             var len = 0;
             var selfIntersection = false;
-            if(!tp) {
+            if(!tp || tp.guid === null) {
                 return true;
             }
             if(!isIncluded(tp, tc) && tp.id !== "__root__") {
@@ -186,6 +190,12 @@ var CZ;
                 t.editButton.width = t.titleObject.height;
                 t.editButton.height = t.titleObject.height;
             }
+            if(typeof t.favoriteBtn !== "undefined") {
+                t.favoriteBtn.x = t.x + t.width - 1.8 * t.titleObject.height;
+                t.favoriteBtn.y = t.titleObject.y + 0.15 * t.titleObject.height;
+                t.favoriteBtn.width = 0.7 * t.titleObject.height;
+                t.favoriteBtn.height = 0.7 * t.titleObject.height;
+            }
         }
         Authoring.modeMouseHandlers = {
             createTimeline: {
@@ -224,6 +234,7 @@ var CZ;
             createExhibit: {
                 mousemove: function () {
                     if(CZ.Authoring.isDragging && _hovered.type === "timeline") {
+                        updateNewCircle();
                     }
                 },
                 mouseup: function () {
@@ -285,6 +296,8 @@ var CZ;
             });
             Authoring.showCreateTimelineForm = formHandlers && formHandlers.showCreateTimelineForm || function () {
             };
+            Authoring.showCreateRootTimelineForm = formHandlers && formHandlers.showCreateRootTimelineForm || function () {
+            };
             Authoring.showEditTimelineForm = formHandlers && formHandlers.showEditTimelineForm || function () {
             };
             Authoring.showCreateExhibitForm = formHandlers && formHandlers.showCreateExhibitForm || function () {
@@ -295,9 +308,14 @@ var CZ;
             };
             Authoring.showEditTourForm = formHandlers && formHandlers.showEditTourForm || function () {
             };
+            Authoring.showMessageWindow = formHandlers && formHandlers.showMessageWindow || function (mess, title) {
+            };
+            Authoring.hideMessageWindow = formHandlers && formHandlers.hideMessageWindow || function () {
+            };
         }
         Authoring.initialize = initialize;
         function updateTimeline(t, prop) {
+            var deffered = new jQuery.Deferred();
             var temp = {
                 x: Number(prop.start),
                 y: t.y,
@@ -309,22 +327,35 @@ var CZ;
                 t.x = temp.x;
                 t.width = temp.width;
                 t.endDate = prop.end;
-            }
-            t.title = prop.title;
-            updateTimelineTitle(t);
-            return CZ.Service.putTimeline(t).then(function (success) {
-                t.id = "t" + success;
-                t.guid = success;
-                t.titleObject.id = "t" + success + "__header__";
-                if(!t.parent.guid) {
-                    document.location.reload(true);
-                } else {
-                    CZ.Common.vc.virtualCanvas("requestInvalidate");
+                if(t.children.length < 3) {
+                    t.height = Math.min.apply(Math, [
+                        t.parent.height * CZ.Layout.timelineHeightRate, 
+                        t.width * CZ.Settings.timelineMinAspect, 
+                        t.height
+                    ]);
                 }
-            }, function (error) {
-            });
+                t.title = prop.title;
+                updateTimelineTitle(t);
+                CZ.Service.putTimeline(t).then(function (success) {
+                    t.id = "t" + success;
+                    t.guid = success;
+                    t.titleObject.id = "t" + success + "__header__";
+                    if(!t.parent.guid) {
+                        document.location.reload(true);
+                    } else {
+                        CZ.Common.vc.virtualCanvas("requestInvalidate");
+                    }
+                    deffered.resolve(t);
+                }, function (error) {
+                    deffered.reject(error);
+                });
+            } else {
+                deffered.reject('Timeline intersects with parent timeline or other siblings');
+            }
+            return deffered.promise();
         }
         Authoring.updateTimeline = updateTimeline;
+        ;
         function removeTimeline(t) {
             var deferred = $.Deferred();
             CZ.Service.deleteTimeline(t).then(function (updateCanvas) {
@@ -358,10 +389,10 @@ var CZ;
                     newExhibit = renewExhibit(newExhibit);
                     newExhibit.id = "e" + response.ExhibitId;
                     CZ.Common.vc.virtualCanvas("requestInvalidate");
-                    deferred.resolve();
+                    deferred.resolve(newExhibit);
                 }, function (error) {
                     console.log("Error connecting to service: update exhibit.\n" + error.responseText);
-                    deferred.reject();
+                    deferred.reject(error);
                 });
             } else {
                 deferred.reject();
@@ -405,7 +436,7 @@ var CZ;
                     deferred.resolve();
                 }, function (error) {
                     console.log("Error connecting to service: update content item.\n" + error.responseText);
-                    deferred.reject();
+                    deferred.reject(error);
                 });
             } else {
                 deferred.reject();
@@ -443,7 +474,7 @@ var CZ;
         function validateExhibitData(date, title, contentItems) {
             var isValid = date !== false;
             isValid = isValid && CZ.Authoring.isNotEmpty(title);
-            isValid = isValid && CZ.Authoring.validateContentItems(contentItems);
+            isValid = isValid && CZ.Authoring.validateContentItems(contentItems, null);
             return isValid;
         }
         Authoring.validateExhibitData = validateExhibitData;
@@ -456,10 +487,10 @@ var CZ;
         }
         Authoring.isNotEmpty = isNotEmpty;
         function isIntervalPositive(start, end) {
-            return (parseFloat(start) < parseFloat(end));
+            return (parseFloat(start) + 1 / 366 <= parseFloat(end));
         }
         Authoring.isIntervalPositive = isIntervalPositive;
-        function validateContentItems(contentItems) {
+        function validateContentItems(contentItems, mediaInput) {
             var isValid = true;
             if(contentItems.length == 0) {
                 return false;
@@ -468,11 +499,19 @@ var CZ;
             while(contentItems[i] != null) {
                 var ci = contentItems[i];
                 isValid = isValid && CZ.Authoring.isNotEmpty(ci.title) && CZ.Authoring.isNotEmpty(ci.uri) && CZ.Authoring.isNotEmpty(ci.mediaType);
+                var mime;
+                if(ci.mediaType.toLowerCase() !== "video") {
+                    mime = CZ.Service.getMimeTypeByUrl(ci.uri);
+                }
                 if(ci.mediaType.toLowerCase() === "image") {
-                    var imageReg = /\.(jpg|jpeg|png)$/i;
+                    var imageReg = /\.(jpg|jpeg|png|gif)$/i;
                     if(!imageReg.test(ci.uri)) {
-                        alert("Sorry, only JPG/PNG images are supported");
-                        isValid = false;
+                        if(mime != "image/jpg" && mime != "image/jpeg" && mime != "image/gif" && mime != "image/png") {
+                            if(mediaInput) {
+                                mediaInput.showError("Sorry, only JPG/PNG/GIF images are supported.");
+                            }
+                            isValid = false;
+                        }
                     }
                 } else if(ci.mediaType.toLowerCase() === "video") {
                     var youtube = /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|[\S\?\&]+&v=|\/user\/\S+))([^\/&#]{10,12})/;
@@ -486,17 +525,36 @@ var CZ;
                         ci.uri = "http://player.vimeo.com/video/" + vimeoVideoId;
                     } else if(vimeoEmbed.test(ci.uri)) {
                     } else {
-                        alert("Sorry, only YouTube or Vimeo videos are supported");
+                        if(mediaInput) {
+                            mediaInput.showError("Sorry, only YouTube or Vimeo videos are supported.");
+                        }
                         isValid = false;
                     }
                 } else if(ci.mediaType.toLowerCase() === "pdf") {
-                    var pdf = /\.(pdf)$/i;
-                    var docs = /\S+docs.google.com\S+$/i;
-                    if(pdf.test(ci.uri)) {
-                        ci.uri = "http://docs.google.com/viewer?url=" + encodeURI(ci.uri) + "&embedded=true";
-                    } else if(docs.test(ci.uri)) {
-                    } else {
-                        alert("Sorry, only PDF extension is supported");
+                    var pdf = /\.(pdf)$|\.(pdf)\?/i;
+                    if(!pdf.test(ci.uri)) {
+                        if(mime != "application/pdf") {
+                            if(mediaInput) {
+                                mediaInput.showError("Sorry, only PDF extension is supported.");
+                            }
+                            isValid = false;
+                        }
+                    }
+                } else if(ci.mediaType.toLowerCase() === "skydrive-document") {
+                    var skydrive = /skydrive\.live\.com\/embed/;
+                    if(!skydrive.test(ci.uri)) {
+                        alert("This is not a Skydrive embed link.");
+                        isValid = false;
+                    }
+                } else if(ci.mediaType.toLowerCase() === "skydrive-image") {
+                    var splited = ci.uri.split(' ');
+                    var skydrive = /skydrive\.live\.com\/embed/;
+                    var width = /[0-9]/;
+                    var height = /[0-9]/;
+                    if(!skydrive.test(splited[0]) || !width.test(splited[1]) || !height.test(splited[2])) {
+                        if(mediaInput) {
+                            mediaInput.showError("This is not a Skydrive embed link.");
+                        }
                         isValid = false;
                     }
                 }
@@ -508,6 +566,19 @@ var CZ;
             return isValid;
         }
         Authoring.validateContentItems = validateContentItems;
+        function showSessionForm() {
+            CZ.HomePageViewModel.sessionForm.show();
+        }
+        Authoring.showSessionForm = showSessionForm;
+        function resetSessionTimer() {
+            if(CZ.Authoring.timer != null) {
+                clearTimeout(CZ.Authoring.timer);
+                CZ.Authoring.timer = setTimeout(function () {
+                    showSessionForm();
+                }, (CZ.Settings.sessionTime - 60) * 1000);
+            }
+        }
+        Authoring.resetSessionTimer = resetSessionTimer;
     })(CZ.Authoring || (CZ.Authoring = {}));
     var Authoring = CZ.Authoring;
 })(CZ || (CZ = {}));

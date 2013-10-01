@@ -9,12 +9,6 @@ namespace Application.Helper.Helpers
 {
     public class TimelineHelper : DependentActions
     {
-        private readonly HelperManager _manager;
-
-        public TimelineHelper()
-        {
-            _manager = new HelperManager();
-        }
         public void AddTimeline(Timeline timeline)
         {
             Logger.Log("<- timeline: " + timeline);
@@ -26,14 +20,13 @@ namespace Application.Helper.Helpers
             Logger.Log("->");
         }
 
-
-        public void AddTimelineWithDayMode(Timeline timeline)
+        public void AddTimelineWithDateMode(Timeline timeline)
         {
             Logger.Log("<- timeline: " + timeline);
             InitTimelineCreationMode();
             DrawTimeline();
             SetTimelineName(timeline.Title);
-            SetDayMode();
+            SetDateMode();
             CreateTimeline();
             WaitAjaxComplete(60);
             Logger.Log("->");
@@ -87,7 +80,7 @@ namespace Application.Helper.Helpers
         public void OpenLifeTimeline()
         {
             Logger.Log("<-");
-            _manager.GetNavigationHelper().OpenLifePage();
+            HelperManager<NavigationHelper>.Instance.OpenLifePage();
             WaitAnimation();
             WaitForElementIsDisplayed(By.XPath("//*[@id='breadcrumbs-table']//*[text()='Life']"));
             Logger.Log("->");
@@ -96,7 +89,7 @@ namespace Application.Helper.Helpers
         public void OpenHumanityTimeline()
         {
             Logger.Log("<-");
-            _manager.GetNavigationHelper().OpenHumanityPage();
+            HelperManager<NavigationHelper>.Instance.OpenHumanityPage();
             WaitForElementIsDisplayed(By.XPath("//*[@id='breadcrumbs-table']//*[text()='Humanity']"));
             WaitAnimation();
             Logger.Log("->");
@@ -106,8 +99,8 @@ namespace Application.Helper.Helpers
         public void OpenCosmosTimeline()
         {
             Logger.Log("<-");
-            _manager.GetNavigationHelper().NavigateToCosmos();
-            WaitCondition(() => GetItemsCount(By.XPath("//*[@id='breadcrumbs-table']//td")) == 1, 60);
+            HelperManager<NavigationHelper>.Instance.NavigateToCosmos();
+            WaitCondition(() => GetItemsCount(By.CssSelector("#breadcrumbs-table td")) == 1, Configuration.ImplicitWait);
             Logger.Log("->");
         }
 
@@ -123,28 +116,43 @@ namespace Application.Helper.Helpers
         public void OpenRomanHistoryTimeline()
         {
             Logger.Log("<-");
-            _manager.GetNavigationHelper().NavigateToRomanHistoryTimeline();
+            HelperManager<NavigationHelper>.Instance.NavigateToRomanHistoryTimeline();
             WaitForElementIsDisplayed(By.XPath("//*[@id='breadcrumbs-table']//*[text()='Roman History']"));
+            WaitAnimation();
+            Logger.Log("->");
+        }
+
+        public void OpenHistoryOfScienceTimeline()
+        {
+            Logger.Log("<-");
+            HelperManager<NavigationHelper>.Instance.NavigateToHistoryOfScienceTimeline();
+            WaitForElementIsDisplayed(By.XPath("//*[@id='breadcrumbs-table']//*[text()='History of Science']"));
             WaitAnimation();
             Logger.Log("->");
         }
 
         private void ConfirmDeletion()
         {
+            Logger.Log("<-", LogType.MessageWithoutScreenshot);
             AcceptAlert();
             MoveToElementAndClick(By.ClassName("virtualCanvasLayerCanvas"));
+            Logger.Log("->");
         }
 
         private void ClickDelete()
         {
-            Click(By.XPath("//*[@id='auth-edit-timeline-form']//*[@class='cz-form-delete cz-button']"));
+            Logger.Log("<-");
+            Click(By.CssSelector("#auth-edit-timeline-form .cz-form-delete.cz-button"));
+            Logger.Log("->", LogType.MessageWithoutScreenshot);
         }
 
         private void InitEditForm()
         {
+            Logger.Log("<-");
             ExecuteJavaScript("CZ.Authoring.isActive = true");
             ExecuteJavaScript("CZ.Authoring.mode = 'editTimeline'");
             ExecuteJavaScript("CZ.Authoring.showEditTimelineForm(CZ.Authoring.selectedTimeline)");
+            Logger.Log("->");
         }
 
         private void NavigateToTimeLine(Timeline timeline)
@@ -156,13 +164,19 @@ namespace Application.Helper.Helpers
 
         private void CreateTimeline()
         {
-            Click(By.XPath("//*[@id='auth-edit-timeline-form']//*[@class='cz-form-save cz-button']"));
+            Logger.Log("<-");
+            Click(By.CssSelector("#auth-edit-timeline-form .cz-form-save.cz-button"));
+            Logger.Log("->");
         }
 
         private void SetTimelineName(string timelineName)
         {
             Logger.Log("<- timeline: " + timelineName);
-            TypeText(By.XPath("//*[@id='auth-edit-timeline-form']//*[@class='cz-form-item-title cz-input']"), timelineName);
+            WaitForElementIsDisplayed(By.Id("auth-edit-timeline-form"));
+            By title = By.CssSelector("#auth-edit-timeline-form .cz-form-item-title.cz-input");
+            WaitForElementIsDisplayed(title);
+            WaitForElementEnabled(title);
+            TypeText(title, timelineName);
             Logger.Log("->");
         }
 
@@ -176,14 +190,16 @@ namespace Application.Helper.Helpers
         private void InitTimelineCreationMode()
         {
             Logger.Log("<-");
-            MoveToElementAndClick(By.XPath("//*[@title='Create your events']"));
-            MoveToElementAndClick(By.XPath("//button[text()='create timeline']"));
+            MoveToElementAndClick(By.CssSelector("[title='Create Your Events']"));
+            MoveToElementAndClick(By.CssSelector("button.cz-form-create-timeline.cz-button"));
             Logger.Log("->");
         }
 
-        private void SetDayMode()
+        private void SetDateMode()
         {
-            SelectByText(By.XPath("//*[@class='cz-form-time-start cz-datepicker']//*[@class='cz-datepicker-mode cz-input']"), "Date");
+            Logger.Log("<-");
+            SelectByText(By.CssSelector(".cz-form-time-start.cz-datepicker .cz-datepicker-mode.cz-input"), "Date");
+            Logger.Log("->");
         }
     }
 }

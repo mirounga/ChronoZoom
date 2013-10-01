@@ -133,18 +133,6 @@ module CZ {
             $("#footerBack").show('clip', {}, 'slow');
         }
 
-        export function startExploring() {
-            if ($('#welcomeScreenCheckbox').is(':checked'))
-                setCookie("welcomeScreenDisallowed", "1", 365);
-
-            hideWelcomeScreen();
-        }
-
-        export function hideWelcomeScreen() {
-            $('#welcomeScreen').remove();
-            $('#welcomeScreenBack').css("display", "none");
-        }
-
         /*Animation tooltip parameter*/
         export var animationTooltipRunning = null;
         export var tooltipMode = "default"; //['infodot'], ['timeline'] indicates whether tooltip is refers to timeline or to infodot
@@ -193,8 +181,7 @@ module CZ {
         }
 
         export function updateMarker() {
-            axis.setTimeMarker(vc.virtualCanvas("getCursorPosition"));
-            axis.setTimeBorders();
+            axis.setTimeMarker(vc.virtualCanvas("getCursorPosition"),true);
         }
 
         // Retrieves the URL to download the data from

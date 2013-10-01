@@ -20,7 +20,6 @@ namespace Tests
         {
             BrowserStateManager.RefreshState();
             HomePageHelper.OpenPage();
-            WelcomeScreenHelper.CloseWelcomePopup();
         }
 
         [ClassCleanup]
@@ -55,6 +54,17 @@ namespace Tests
             Assert.IsTrue(BookmarkHelper.IsBookmarkExpanded());
             BookmarkHelper.HideBookmark();
             Assert.IsFalse(BookmarkHelper.IsBookmarkExpanded());
+        }
+        
+        [TestMethod]
+        public void bookmark_should_be_opened_second_time()
+        {
+            TourHelper.OpenToursListWindow();
+            TourHelper.SelectMayanHistoryTour();
+            TourHelper.CloseBookmark();
+            TourHelper.OpenToursListWindow();
+            TourHelper.StartPortusTour();
+            Assert.IsTrue(BookmarkHelper.IsBookmarkExpanded());
         }
     }
 }

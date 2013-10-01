@@ -40,10 +40,15 @@ module CZ {
                 this.saveButton.off();
                 this.deleteButton.off();
 
+                this.titleInput.focus(() => {
+                    this.titleInput.hideError();
+                });
+
                 this.initialize();
             }
 
             private initialize(): void {
+                this.saveButton.prop('disabled', false);
                 if (CZ.Authoring.mode === "createTimeline") {
                     this.deleteButton.hide();
                     this.titleTextblock.text("Create Timeline");
@@ -53,6 +58,12 @@ module CZ {
                     this.deleteButton.show();
                     this.titleTextblock.text("Edit Timeline");
                     this.saveButton.text("update timeline");
+                }
+                else if (CZ.Authoring.mode === "createRootTimeline") {
+                    this.deleteButton.hide();
+                    this.closeButton.hide();
+                    this.titleTextblock.text("Create Root Timeline");
+                    this.saveButton.text("create timeline");
                 }
                 else {
                     console.log("Unexpected authoring mode in timeline form.");
@@ -77,10 +88,11 @@ module CZ {
                     isDataValid = CZ.Authoring.validateTimelineData(this.startDate.getDate(), this.endDate.getDate(), this.titleInput.val());
                     // Other cases are covered by datepicker
                     if (!CZ.Authoring.isNotEmpty(this.titleInput.val())) {
-                        this.errorMessage.text('Title is empty');
+                        this.titleInput.showError("Title can't be empty");
                     }
-                    else if (!CZ.Authoring.isIntervalPositive(this.startDate.getDate(), this.endDate.getDate())) {
-                        this.errorMessage.text('Result interval is not positive');
+
+                    if (!CZ.Authoring.isIntervalPositive(this.startDate.getDate(), this.endDate.getDate())) {
+                        this.errorMessage.text('Time interval should no less than one day');
                     }      
                     
                     if (!isDataValid) {
@@ -90,6 +102,7 @@ module CZ {
                         this.errorMessage.empty();
                         var self = this;
 
+                        this.saveButton.prop('disabled', true);
                         CZ.Authoring.updateTimeline(this.timeline, {
                             title: this.titleInput.val(),
                             start: this.startDate.getDate(),
@@ -98,16 +111,28 @@ module CZ {
                             function (success) {
                                 self.isCancel = false;
                                 self.close();
+                                
+                                //Move to new created timeline
+                                self.timeline.onmouseclick();
                             },
                             function (error) {
-                                alert("Unable to save changes. Please try again later.");
+                                if (error !== undefined && error !== null) {
+                                    self.errorMessage.text(error).show().delay(7000).fadeOut();
+                                }
+                                else {
+                                    self.errorMessage.text("Sorry, internal server error :(").show().delay(7000).fadeOut();
+                                }
                                 console.log(error);
-                            });
+                            }
+                        ).always(() => {
+                            this.saveButton.prop('disabled', false);
+                        });
                     }
                 });
 
                 this.deleteButton.click(event => {
                     if (confirm("Are you sure want to delete timeline and all of its nested timelines and exhibits? Delete can't be undone!")) {
+                        var isDataValid = true;
                         CZ.Authoring.removeTimeline(this.timeline);
                         this.close();
                     }
@@ -116,7 +141,7 @@ module CZ {
 
             public show(): void {
                 super.show({
-                    effect: "slide", 
+                    effect: "slide",
                     direction: "left",
                     duration: 500
                 });
@@ -128,16 +153,17 @@ module CZ {
                 this.errorMessage.empty();
 
                 super.close({
-                    effect: "slide", 
+                    effect: "slide",
                     direction: "left",
                     duration: 500,
                     complete: () => {
                         this.endDate.remove();
                         this.startDate.remove();
+                        this.titleInput.hideError();
                     }
                 });
 
-                if (this.isCancel && CZ.Authoring.mode === "createTimeline") {                    
+                if (this.isCancel && CZ.Authoring.mode === "createTimeline") {
                     CZ.VCContent.removeChild(this.timeline.parent, this.timeline.id);
                     CZ.Common.vc.virtualCanvas("requestInvalidate");
                 }
@@ -145,7 +171,7 @@ module CZ {
                 CZ.Authoring.isActive = false;
 
                 this.activationSource.removeClass("active");
-                
+
             }
         }
     }

@@ -9,6 +9,7 @@ var CZ;
         var FormEditExhibit = (function (_super) {
             __extends(FormEditExhibit, _super);
             function FormEditExhibit(container, formInfo) {
+                var _this = this;
                         _super.call(this, container, formInfo);
                 this.titleTextblock = container.find(formInfo.titleTextblock);
                 this.titleInput = container.find(formInfo.titleInput);
@@ -18,6 +19,9 @@ var CZ;
                 this.errorMessage = container.find(formInfo.errorMessage);
                 this.saveButton = container.find(formInfo.saveButton);
                 this.deleteButton = container.find(formInfo.deleteButton);
+                this.titleInput.focus(function () {
+                    _this.titleInput.hideError();
+                });
                 this.contentItemsTemplate = formInfo.contentItemsTemplate;
                 this.exhibit = formInfo.context;
                 this.exhibitCopy = $.extend({
@@ -29,15 +33,23 @@ var CZ;
                 delete this.exhibitCopy.children;
                 this.mode = CZ.Authoring.mode;
                 this.isCancel = true;
+                this.isModified = false;
                 this.initUI();
             }
             FormEditExhibit.prototype.initUI = function () {
                 var _this = this;
+                this.saveButton.prop('disabled', false);
+                this.titleInput.change(function () {
+                    _this.isModified = true;
+                });
+                this.datePicker.datePicker.change(function () {
+                    _this.isModified = true;
+                });
                 if(this.mode === "createExhibit") {
                     this.titleTextblock.text("Create Exhibit");
                     this.saveButton.text("create exhibit");
                     this.titleInput.val(this.exhibit.title || "");
-                    this.datePicker.setDate(this.exhibit.infodotDescription.date || "");
+                    this.datePicker.setDate(Number(this.exhibit.infodotDescription.date) || "", true);
                     this.closeButton.show();
                     this.createArtifactButton.show();
                     this.saveButton.show();
@@ -63,7 +75,7 @@ var CZ;
                     this.titleTextblock.text("Edit Exhibit");
                     this.saveButton.text("update exhibit");
                     this.titleInput.val(this.exhibit.title || "");
-                    this.datePicker.setDate(this.exhibit.infodotDescription.date || "");
+                    this.datePicker.setDate(Number(this.exhibit.infodotDescription.date) || "", true);
                     this.closeButton.show();
                     this.createArtifactButton.show();
                     this.saveButton.show();
@@ -94,6 +106,7 @@ var CZ;
                 }
             };
             FormEditExhibit.prototype.onCreateArtifact = function () {
+                this.isModified = true;
                 if(this.exhibit.contentItems.length < CZ.Settings.infodotMaxContentItemsCount) {
                     this.exhibit.title = this.titleInput.val() || "";
                     this.exhibit.x = this.datePicker.getDate() - this.exhibit.width / 2;
@@ -113,14 +126,34 @@ var CZ;
                     this.hide(true);
                     CZ.Authoring.contentItemMode = "createContentItem";
                     CZ.Authoring.showEditContentItemForm(newContentItem, this.exhibit, this, true);
+                } else {
+                    var self = this;
+                    var origMsg = this.errorMessage.text();
+                    this.errorMessage.text("Sorry, only 10 artifacts are allowed in one exhibit").show().delay(7000).fadeOut(function () {
+                        return self.errorMessage.text(origMsg);
+                    });
                 }
             };
             FormEditExhibit.prototype.onSave = function () {
                 var _this = this;
+                var exhibit_x = this.datePicker.getDate() - this.exhibit.width / 2;
+                var exhibit_y = this.exhibit.y;
+                if(exhibit_x + this.exhibit.width >= this.exhibit.parent.x + this.exhibit.parent.width) {
+                    exhibit_x = this.exhibit.parent.x + this.exhibit.parent.width - this.exhibit.width;
+                }
+                if(exhibit_x <= this.exhibit.parent.x) {
+                    exhibit_x = this.exhibit.parent.x;
+                }
+                if(exhibit_y + this.exhibit.height >= this.exhibit.parent.y + this.exhibit.parent.height) {
+                    exhibit_y = this.exhibit.parent.y + this.exhibit.parent.height - this.exhibit.height;
+                }
+                if(exhibit_y <= this.exhibit.parent.y) {
+                    exhibit_y = this.exhibit.parent.y;
+                }
                 var newExhibit = {
                     title: this.titleInput.val() || "",
-                    x: this.datePicker.getDate() - this.exhibit.width / 2,
-                    y: this.exhibit.y,
+                    x: exhibit_x,
+                    y: exhibit_y,
                     height: this.exhibit.height,
                     width: this.exhibit.width,
                     infodotDescription: {
@@ -129,27 +162,46 @@ var CZ;
                     contentItems: this.exhibit.contentItems || [],
                     type: "infodot"
                 };
+                if(!CZ.Authoring.isNotEmpty(this.titleInput.val())) {
+                    this.titleInput.showError("Title can't be empty");
+                }
+                if(CZ.Authoring.checkExhibitIntersections(this.exhibit.parent, newExhibit, true)) {
+                    this.errorMessage.text("Exhibit intersects other elemenets");
+                }
                 if(CZ.Authoring.validateExhibitData(this.datePicker.getDate(), this.titleInput.val(), this.exhibit.contentItems) && CZ.Authoring.checkExhibitIntersections(this.exhibit.parent, newExhibit, true) && this.exhibit.contentItems.length >= 1 && this.exhibit.contentItems.length <= CZ.Settings.infodotMaxContentItemsCount) {
+                    this.saveButton.prop('disabled', true);
                     CZ.Authoring.updateExhibit(this.exhibitCopy, newExhibit).then(function (success) {
                         _this.isCancel = false;
+                        _this.isModified = false;
                         _this.close();
+                        _this.exhibit.id = arguments[0].id;
+                        _this.exhibit.onmouseclick();
                     }, function (error) {
-                        alert("Unable to save changes. Please try again later.");
+                        var errorMessage = JSON.parse(error.responseText).errorMessage;
+                        if(errorMessage !== "") {
+                            _this.errorMessage.text(errorMessage);
+                        } else {
+                            _this.errorMessage.text("Sorry, internal server error :(");
+                        }
+                        _this.errorMessage.show().delay(7000).fadeOut();
+                    }).always(function () {
+                        _this.saveButton.prop('disabled', false);
                     });
                 } else if(this.exhibit.contentItems.length === 0) {
                     var self = this;
                     var origMsg = this.errorMessage.text();
-                    this.errorMessage.text("Cannot create exhibit without content items.").show().delay(7000).fadeOut(function () {
+                    this.errorMessage.text("Cannot create exhibit without artifacts.").show().delay(7000).fadeOut(function () {
                         return self.errorMessage.text(origMsg);
                     });
                 } else {
-                    this.errorMessage.show().delay(7000).fadeOut();
+                    this.errorMessage.text("One or more fields filled wrong").show().delay(7000).fadeOut();
                 }
             };
             FormEditExhibit.prototype.onDelete = function () {
                 if(confirm("Are you sure want to delete the exhibit and all of its content items? Delete can't be undone!")) {
                     CZ.Authoring.removeExhibit(this.exhibit);
                     this.isCancel = false;
+                    this.isModified = false;
                     this.close();
                 }
             };
@@ -178,6 +230,7 @@ var CZ;
             };
             FormEditExhibit.prototype.onContentItemRemoved = function (item, _) {
                 var idx;
+                this.isModified = true;
                 if(typeof item.data.order !== 'undefined' && item.data.order !== null && item.data.order >= 0 && item.data.order < CZ.Settings.infodotMaxContentItemsCount) {
                     idx = item.data.order;
                 } else if(typeof item.data.guid !== 'undefined' && item.data.guid !== null) {
@@ -197,6 +250,7 @@ var CZ;
                 }
             };
             FormEditExhibit.prototype.onContentItemMove = function (item, indexStart, indexStop) {
+                this.isModified = true;
                 var ci = this.exhibit.contentItems.splice(indexStart, 1)[0];
                 this.exhibit.contentItems.splice(indexStop, 0, ci);
                 for(var i = 0; i < this.exhibit.contentItems.length; i++) {
@@ -228,6 +282,13 @@ var CZ;
             FormEditExhibit.prototype.close = function (noAnimation) {
                 if (typeof noAnimation === "undefined") { noAnimation = false; }
                 var _this = this;
+                if(this.isModified) {
+                    if(window.confirm("There is unsaved data. Do you want to close without saving?")) {
+                        this.isModified = false;
+                    } else {
+                        return;
+                    }
+                }
                 _super.prototype.close.call(this, noAnimation ? undefined : {
                     effect: "slide",
                     direction: "left",
@@ -235,6 +296,7 @@ var CZ;
                     complete: function () {
                         _this.datePicker.remove();
                         _this.contentItemsListBox.clear();
+                        _this.titleInput.hideError();
                     }
                 });
                 if(this.isCancel) {
